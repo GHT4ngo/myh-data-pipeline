@@ -569,7 +569,7 @@ function ProjectStory() {
               <p>
                 The prediction notebook trains and compares Decision Tree, Random Forest,
                 and XGBoost models. Random Forest is kept as the deployed model because it
-                gave the best balance of performance and explainability for this assignment.
+                gave the best balance of performance and explainability for this project.
               </p>
               <p>
                 The saved model is served through <span className="font-mono text-xs text-foreground">POST /predict</span>,
