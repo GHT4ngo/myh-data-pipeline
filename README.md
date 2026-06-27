@@ -298,3 +298,7 @@ python convert_notebooks.py
 
 - Live dashboard: <https://myh-data-pipeline-dashboard.lovable.app/>
 - Frontend repo: <https://github.com/GHT4ngo/myh-data-pipeline-dashboard>
+
+## License
+
+Released under the [MIT License](LICENSE).
