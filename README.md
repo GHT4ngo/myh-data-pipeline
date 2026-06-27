@@ -258,6 +258,8 @@ The saved model (`api/model.joblib`) and feature column list (`api/model_columns
 | Cloudflare Workers | Frontend | Alternative deployment target wired up via `wrangler.jsonc` |
 | React 19 / TanStack Router / TanStack Query / Recharts | Frontend | UI, routing, live API state, and charts |
 | shadcn/ui / Tailwind CSS | Frontend | Component library and styling |
+| Claude Code | Assistant | Code assistant and project assistant during development |
+| Codex | Assistant | Project review, dashboard/API polish, and final release preparation |
 
 ## Run Locally With Docker
 
