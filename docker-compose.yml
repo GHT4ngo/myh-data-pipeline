@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: data_pipeline_de25
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/seed.sql
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      PG_HOST: db
+      PG_PORT: 5432
+      PG_DATABASE: data_pipeline_de25
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

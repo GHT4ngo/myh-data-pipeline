@@ -1,0 +1,12 @@
+pandas
+openpyxl
+psycopg2-binary
+fastapi
+uvicorn[standard]
+python-dotenv
+matplotlib
+scikit-learn
+xgboost
+joblib
+pygments
+ruff

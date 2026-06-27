@@ -1,0 +1,1388 @@
+<!doctype html><html><head><meta charset="utf-8"><title>scb_enrichment</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0f1923;
+  --surface-1: #142231;
+  --surface-2: #1a2b3b;
+  --border: #2b4154;
+  --text: #e6edf3;
+  --muted: #9fb0bf;
+  --primary: #5aa7ff;
+  --success: #52d6a3;
+  --warning: #f4c95d;
+  --danger: #ff6b6b;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+body { padding: 28px; }
+.notebook-banner {
+  max-width: 1180px;
+  margin: 0 auto 24px auto;
+  padding: 18px 24px;
+  border: 1px solid rgba(45, 212, 191, .36);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(20,184,166,.32), rgba(15,25,35,.94) 55%, rgba(59,130,246,.25)),
+    #0f1923;
+  color: #e6fffb;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  box-shadow: 0 18px 60px -32px #2dd4bf;
+}
+.notebook {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.cell {
+  margin: 18px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+}
+.markdown-cell {
+  padding: 20px 24px;
+}
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 8px 14px;
+  color: var(--muted);
+  font: 12px/1.4 "JetBrains Mono", Consolas, monospace;
+}
+pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: 18px;
+  background: #0b121b;
+  color: var(--text);
+  font: 12px/1.65 "JetBrains Mono", Consolas, monospace;
+}
+code { color: #b6e0ff; }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 28px 0 18px;
+}
+h1, h2, h3 { color: var(--text); line-height: 1.18; }
+h1 { font-size: 32px; }
+h2 { margin-top: 26px; font-size: 24px; }
+h3 { margin-top: 22px; font-size: 18px; }
+p, li { color: var(--muted); line-height: 1.72; }
+a { color: var(--primary); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text);
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 7px 9px;
+  vertical-align: top;
+}
+th { background: var(--surface-2); }
+tr:nth-child(even) td { background: rgba(255,255,255,.025); }
+.output {
+  border-top: 1px solid var(--border);
+  background: #111d2a;
+  overflow-x: auto;
+}
+.output-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.output pre {
+  background: #111d2a;
+  color: #d4e5f5;
+}
+.status-ok { color: var(--success); }
+.status-warning { color: var(--warning); }
+.status-error { color: var(--danger); }
+/* Pygments Monokai output */
+div.highlight { margin: 0; }
+div.highlight pre {
+  margin: 0 !important;
+  padding: 18px !important;
+  overflow-x: auto !important;
+  font: 12px/1.65 "JetBrains Mono", Consolas, monospace !important;
+  border-radius: 0 !important;
+}
+</style>
+</head><body><div class="notebook-banner">MYH Data Pipeline · Notebook source and outputs</div><main class="notebook"><section class="cell markdown-cell"><h1>External enrichment with SCB (Statistics Sweden)</h1>
+<p>This notebook is intentionally <strong>separate</strong> from the core MYH pipeline (<code>data_preparation.ipynb</code>, <code>pipeline.ipynb</code>).</p>
+<p>The main project continues to work even if the SCB API is unavailable, has changed its table structure, or this notebook has never been run.</p>
+<h2>Purpose</h2>
+<p>The MYH application data tells us <em>how many</em> applications were submitted per municipality and how many were approved.</p>
+<p>What it does not tell us is <em>context</em>: is Stockholm getting many approvals because it is a large city, or because it genuinely has a high approval rate relative to its population?</p>
+<p>By joining each municipality to SCB demographic data we can:</p>
+<ul>
+<li>Calculate <strong>applications per 100 000 residents</strong> (normalise for city size)</li>
+<li>Surface <strong>employment rate</strong> and <strong>unemployment rate</strong> so the dashboard can correlate YH education demand with local labour market conditions</li>
+</ul>
+<h2>Data sources</h2>
+<table><thead><tr><th>Source</th><th>Table</th><th>Measures</th><th>Years available</th></tr></thead><tbody><tr><td>SCB PxWeb</td><td><code>BE/BE0101/BE0101A/BefolkningNy</code></td><td>Total population per municipality</td><td>1968 – 2024</td></tr><tr><td>SCB PxWeb</td><td><code>AM/AM0210/AM0210A/ArbStatusAr</code></td><td>Employment rate, unemployment rate (ages 20–64)</td><td>2020 – 2025</td></tr></tbody></table>
+<p>No API key is required. SCB&#x27;s PxWeb API is open and free. The rate limit is 30 requests per 10 seconds, which this notebook stays well within.</p>
+<h2>Important notes</h2>
+<ul>
+<li>Population data goes up to <strong>2024</strong>. Applications from 2025 will receive 2024 population figures when used in the dashboard (the API always takes the latest available year for each municipality).</li>
+<li>Labour market data starts in <strong>2020</strong>. Municipalities in the 2018 and 2019 data will have <code>null</code> for the rate columns.</li>
+<li>This notebook queries only the <strong>179 municipalities</strong> that appear in the MYH dataset, not all 290 Swedish municipalities.</li>
+</ul></section><section class="cell markdown-cell"><h2>Output</h2>
+<p>Running this notebook produces one file:</p>
+<p>```</p>
+<p>external_enrichment/data/scb_municipality_context.csv</p>
+<p>```</p>
+<p>The file has one row per <strong>municipality × year</strong> combination and these columns:</p>
+<table><thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code>municipality</code></td><td>text</td><td>Swedish municipality name (matches <code>kommun</code> in applications table)</td></tr><tr><td><code>municipality_code</code></td><td>text</td><td>Official SCB 4-digit code, e.g. <code>0180</code> for Stockholm</td></tr><tr><td><code>year</code></td><td>int</td><td>The reference year for the SCB figures</td></tr><tr><td><code>population</code></td><td>int</td><td>Total population at year-end</td></tr><tr><td><code>employment_rate_percent</code></td><td>float</td><td>Share of the 20–64 age group that is employed (%)</td></tr><tr><td><code>unemployment_rate_percent</code></td><td>float</td><td>Share of the workforce aged 20–64 that is unemployed (%)</td></tr></tbody></table>
+<p>The FastAPI <code>/stats/municipality-enrichment</code> endpoint reads this file and joins it to the live application data.</p>
+<p>If the file is missing or the notebook has not been run, the endpoint still works — it just returns application metrics without the SCB context columns.</p></section><section class="cell"><div class="code-header"><span>Code cell 1</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #FF4689">from</span><span style="color: #F8F8F2"> __future__ </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">annotations</span>
+
+<span style="color: #FF4689">import</span><span style="color: #F8F8F2"> json</span>
+<span style="color: #FF4689">import</span><span style="color: #F8F8F2"> unicodedata</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> io </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">StringIO</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> pathlib </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">Path</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> typing </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">Any</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> urllib </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">request</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> urllib.error </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">HTTPError,</span> <span style="color: #F8F8F2">URLError</span>
+
+<span style="color: #FF4689">import</span><span style="color: #F8F8F2"> pandas </span><span style="color: #66D9EF">as</span><span style="color: #F8F8F2"> pd</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">find_project_root</span><span style="color: #F8F8F2">()</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">Path:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Find the project root from common notebook launch locations.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">current_directory</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">Path</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">cwd()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">resolve()</span>
+    <span style="color: #F8F8F2">candidates</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[current_directory,</span> <span style="color: #FF4689">*</span><span style="color: #F8F8F2">current_directory</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">parents]</span>
+
+    <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">candidate</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">candidates:</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">(candidate</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;data&quot;</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;curated_applications.csv&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">exists():</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">candidate</span>
+
+    <span style="color: #66D9EF">raise</span> <span style="color: #A6E22E">FileNotFoundError</span><span style="color: #F8F8F2">(</span>
+        <span style="color: #E6DB74">&quot;Could not find data/curated_applications.csv. &quot;</span>
+        <span style="color: #E6DB74">&quot;Open the notebook from the project folder or check that the curated CSV exists.&quot;</span>
+    <span style="color: #F8F8F2">)</span>
+
+
+<span style="color: #F8F8F2">BASE_DIR</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">find_project_root()</span>
+<span style="color: #F8F8F2">APPLICATIONS_PATH</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">BASE_DIR</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;data&quot;</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;curated_applications.csv&quot;</span>
+<span style="color: #F8F8F2">OUTPUT_DIR</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">BASE_DIR</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;external_enrichment&quot;</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;data&quot;</span>
+<span style="color: #F8F8F2">OUTPUT_PATH</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">OUTPUT_DIR</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;scb_municipality_context.csv&quot;</span>
+
+<span style="color: #F8F8F2">POPULATION_API_URL</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+    <span style="color: #E6DB74">&quot;https://api.scb.se/OV0104/v1/doris/sv/ssd/BE/BE0101/BE0101A/BefolkningNy&quot;</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">LABOUR_MARKET_API_URL</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+    <span style="color: #E6DB74">&quot;https://api.scb.se/OV0104/v1/doris/sv/ssd/AM/AM0210/AM0210A/ArbStatusAr&quot;</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">YEARS</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;2018&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2019&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2020&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2021&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2022&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2023&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2024&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2025&quot;</span><span style="color: #F8F8F2">]</span>
+<span style="color: #F8F8F2">LABOUR_MARKET_YEARS</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;2020&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2021&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2022&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2023&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2024&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;2025&quot;</span><span style="color: #F8F8F2">]</span>
+<span style="color: #F8F8F2">LABOUR_MARKET_AGE_GROUP</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;20-64 år&quot;</span>
+<span style="color: #F8F8F2">REQUEST_TIMEOUT_SECONDS</span> <span style="color: #FF4689">=</span> <span style="color: #AE81FF">60</span>
+
+
+<span style="color: #F8F8F2">ENRICHMENT_LOG:</span> <span style="color: #F8F8F2">list[dict[str,</span> <span style="color: #F8F8F2">str]]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">log_event</span><span style="color: #F8F8F2">(step:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">level:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">message:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">detail:</span> <span style="color: #F8F8F2">str</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Append one event to the enrichment log.</span>
+
+<span style="color: #E6DB74">    level: &quot;ok&quot; | &quot;warning&quot; | &quot;error&quot;</span>
+<span style="color: #E6DB74">    &quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">ENRICHMENT_LOG</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+        <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;Step&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">step,</span> <span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">level,</span> <span style="color: #E6DB74">&quot;Message&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">message,</span> <span style="color: #E6DB74">&quot;Detail&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">detail}</span>
+    <span style="color: #F8F8F2">)</span>
+
+
+<span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;setup&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Project paths resolved&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(BASE_DIR))</span>
+</pre></div>
+</section><section class="cell markdown-cell"><h2>Setup and helper functions</h2>
+<h3>Swedish character normalisation</h3>
+<p>SCB API labels are in Swedish and contain <code>å</code>, <code>ä</code>, <code>ö</code>. The helper <code>normalize_label</code> decomposes these to their ASCII base letters using Unicode NFKD decomposition so that string comparisons work without hardcoding the Swedish characters:</p>
+<p>```</p>
+<p>&#x27;Folkmängd&#x27;          → &#x27;folkmangd&#x27;</p>
+<p>&#x27;arbetslöshet&#x27;       → &#x27;arbetsloshet&#x27;</p>
+<p>&#x27;sysselsättningsgrad&#x27; → &#x27;sysselsattningsgrad&#x27;</p>
+<p>```</p>
+<p>This means we can search for <code>&#x27;folkmangd&#x27;</code> and still match the API label <code>&#x27;Folkmängd&#x27;</code>.</p>
+<h3>PxWeb CSV format (wide, not long)</h3>
+<p>The SCB PxWeb v1 API returns data in <strong>wide format</strong>: when you request multiple years, each year becomes its own column rather than a row value. For example, a population query returns:</p>
+<p>```</p>
+<p>region            | ålder       | Folkmängd 2018 | Folkmängd 2019 | ...</p>
+<p>0180 Stockholm    | totalt ålder| 961551         | 974073         | ...</p>
+<p>```</p>
+<p>The prepare step later melts this to long format. The encoding is <strong>ISO-8859-1</strong> (Latin-1), not UTF-8.</p>
+<h3>Municipality codes</h3>
+<p>SCB uses 4-digit numeric municipality codes (e.g. <code>0180</code> for Stockholm). The API always returns them prefixed in the region label (<code>&#x27;0180 Stockholm&#x27;</code>). The <code>clean_municipality_name</code> helper strips the code prefix so municipality names match the MYH dataset.</p></section><section class="cell"><div class="code-header"><span>Code cell 2</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">show_enrichment_log</span><span style="color: #F8F8F2">()</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Render the enrichment log as a dataframe.&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(ENRICHMENT_LOG)</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">describe_http_error</span><span style="color: #F8F8F2">(error:</span> <span style="color: #F8F8F2">HTTPError)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Return SCB&#39;s error text when the API responds with an HTTP error.&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">response_text</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">error</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">decode(</span><span style="color: #E6DB74">&quot;utf-8&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">errors</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;replace&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">response_text</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;&quot;</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">f&quot;HTTP {</span><span style="color: #F8F8F2">error</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">code</span><span style="color: #E6DB74">} {</span><span style="color: #F8F8F2">error</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">reason</span><span style="color: #E6DB74">}. {</span><span style="color: #F8F8F2">response_text</span><span style="color: #E6DB74">}&quot;</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">describe_api_error</span><span style="color: #F8F8F2">(error:</span> <span style="color: #A6E22E">Exception</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Create a readable error message for network/API failures.&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">isinstance(error,</span> <span style="color: #F8F8F2">HTTPError):</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">describe_http_error(error)</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">str(error)</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">fetch_metadata</span><span style="color: #F8F8F2">(api_url:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">step:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">Any]</span> <span style="color: #FF4689">|</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Download table metadata from a SCB PxWeb v1 endpoint.</span>
+
+<span style="color: #E6DB74">    Returns None and logs an error instead of raising a traceback. This keeps the</span>
+<span style="color: #E6DB74">    notebook behaviour close to data_preparation.ipynb: every step reports its</span>
+<span style="color: #E6DB74">    status and the final log explains what happened.</span>
+<span style="color: #E6DB74">    &quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #66D9EF">with</span> <span style="color: #F8F8F2">request</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">urlopen(api_url,</span> <span style="color: #F8F8F2">timeout</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">REQUEST_TIMEOUT_SECONDS)</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">response:</span>
+            <span style="color: #F8F8F2">metadata</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">json</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">loads(response</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">decode(</span><span style="color: #E6DB74">&quot;utf-8&quot;</span><span style="color: #F8F8F2">))</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #F8F8F2">(HTTPError,</span> <span style="color: #F8F8F2">URLError,</span> <span style="color: #A6E22E">TimeoutError</span><span style="color: #F8F8F2">,</span> <span style="color: #A6E22E">OSError</span><span style="color: #F8F8F2">)</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">error:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #F8F8F2">step,</span>
+            <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;SCB metadata request failed&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">api_url</span><span style="color: #E6DB74">} | {</span><span style="color: #F8F8F2">describe_api_error(error)</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #66D9EF">None</span>
+
+    <span style="color: #F8F8F2">log_event(step,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;SCB metadata loaded&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">api_url)</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">metadata</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">normalize_label</span><span style="color: #F8F8F2">(value:</span> <span style="color: #F8F8F2">object)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Normalize SCB labels so matching does not depend on Swedish letters.</span>
+
+<span style="color: #E6DB74">    Swedish characters are decomposed (NFKD) so that å/ä/ö become their ASCII</span>
+<span style="color: #E6DB74">    base letters after the combining diacritics are stripped.</span>
+<span style="color: #E6DB74">    Examples: &#39;Folkmängd&#39; → &#39;folkmangd&#39;,  &#39;arbetslöshet&#39; → &#39;arbetsloshet&#39;</span>
+<span style="color: #E6DB74">    &quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">text</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">str(value)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">lower()</span>
+    <span style="color: #F8F8F2">decomposed</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">unicodedata</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">normalize(</span><span style="color: #E6DB74">&quot;NFKD&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">text)</span>
+    <span style="color: #F8F8F2">ascii_text</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">decomposed</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">encode(</span><span style="color: #E6DB74">&quot;ascii&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ignore&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">decode(</span><span style="color: #E6DB74">&quot;ascii&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot; &quot;</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">join(ascii_text</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">split())</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">variable_by_code</span><span style="color: #F8F8F2">(metadata:</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">Any],</span> <span style="color: #F8F8F2">code:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">Any]:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Return one metadata variable by code.&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">variable</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">metadata[</span><span style="color: #E6DB74">&quot;variables&quot;</span><span style="color: #F8F8F2">]:</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">variable[</span><span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #F8F8F2">code:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">variable</span>
+    <span style="color: #66D9EF">raise</span> <span style="color: #A6E22E">KeyError</span><span style="color: #F8F8F2">(</span><span style="color: #E6DB74">f&quot;SCB variable not found: {</span><span style="color: #F8F8F2">code</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">codes_matching_texts</span><span style="color: #F8F8F2">(</span>
+    <span style="color: #F8F8F2">metadata:</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">Any],</span>
+    <span style="color: #F8F8F2">variable_code:</span> <span style="color: #F8F8F2">str,</span>
+    <span style="color: #F8F8F2">wanted_texts:</span> <span style="color: #F8F8F2">set[str],</span>
+<span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">list[str]:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Return SCB codes whose labels match the requested text values.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">variable</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">variable_by_code(metadata,</span> <span style="color: #F8F8F2">variable_code)</span>
+    <span style="color: #F8F8F2">wanted_normalized</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{normalize_label(text)</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">text</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">wanted_texts}</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">[</span>
+        <span style="color: #F8F8F2">code</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">code,</span> <span style="color: #F8F8F2">text</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">zip(variable[</span><span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">variable[</span><span style="color: #E6DB74">&quot;valueTexts&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">strict</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">normalize_label(text)</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">wanted_normalized</span>
+    <span style="color: #F8F8F2">]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">code_matching_text</span><span style="color: #F8F8F2">(</span>
+    <span style="color: #F8F8F2">metadata:</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">Any],</span>
+    <span style="color: #F8F8F2">variable_code:</span> <span style="color: #F8F8F2">str,</span>
+    <span style="color: #F8F8F2">wanted_text:</span> <span style="color: #F8F8F2">str,</span>
+<span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str</span> <span style="color: #FF4689">|</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Return one SCB code by label after ASCII-safe normalization.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">matches</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">codes_matching_texts(metadata,</span> <span style="color: #F8F8F2">variable_code,</span> <span style="color: #F8F8F2">{wanted_text})</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">matches:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;metadata&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;Required SCB value not found&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">variable_code</span><span style="color: #E6DB74">}={</span><span style="color: #F8F8F2">wanted_text</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #66D9EF">None</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">matches[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">code_starting_with_text</span><span style="color: #F8F8F2">(</span>
+    <span style="color: #F8F8F2">metadata:</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">Any],</span>
+    <span style="color: #F8F8F2">variable_code:</span> <span style="color: #F8F8F2">str,</span>
+    <span style="color: #F8F8F2">wanted_prefix:</span> <span style="color: #F8F8F2">str,</span>
+<span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str</span> <span style="color: #FF4689">|</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Return one SCB code whose label starts with a normalized prefix.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">variable</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">variable_by_code(metadata,</span> <span style="color: #F8F8F2">variable_code)</span>
+    <span style="color: #F8F8F2">normalized_prefix</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">normalize_label(wanted_prefix)</span>
+    <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">code,</span> <span style="color: #F8F8F2">text</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">zip(variable[</span><span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">variable[</span><span style="color: #E6DB74">&quot;valueTexts&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">strict</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">):</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">normalize_label(text)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">startswith(normalized_prefix):</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">code</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;metadata&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;Required SCB prefix not found&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">variable_code</span><span style="color: #E6DB74">} starts with {</span><span style="color: #F8F8F2">wanted_prefix</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #66D9EF">None</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">column_matching_text</span><span style="color: #F8F8F2">(dataframe:</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame,</span> <span style="color: #F8F8F2">wanted_text:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str</span> <span style="color: #FF4689">|</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Find a dataframe column by normalized label.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">wanted_normalized</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">normalize_label(wanted_text)</span>
+    <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">column</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">dataframe</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">normalize_label(column)</span> <span style="color: #FF4689">==</span> <span style="color: #F8F8F2">wanted_normalized:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">column</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;prepare&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Required column not found&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">wanted_text)</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #66D9EF">None</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">municipality_code_map</span><span style="color: #F8F8F2">(metadata:</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">Any])</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">str]:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Map Swedish municipality names to SCB municipality codes.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">region</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">variable_by_code(metadata,</span> <span style="color: #E6DB74">&quot;Region&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">mapping</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{}</span>
+    <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">code,</span> <span style="color: #F8F8F2">name</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">zip(region[</span><span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">region[</span><span style="color: #E6DB74">&quot;valueTexts&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">strict</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">):</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">len(code)</span> <span style="color: #FF4689">==</span> <span style="color: #AE81FF">4</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #F8F8F2">mapping[name</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">code</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">mapping</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">post_scb_csv</span><span style="color: #F8F8F2">(api_url:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">query:</span> <span style="color: #F8F8F2">list[dict[str,</span> <span style="color: #F8F8F2">Any]],</span> <span style="color: #F8F8F2">step:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Run a SCB query and parse the CSV response into a dataframe.</span>
+
+<span style="color: #E6DB74">    SCB PxWeb returns CSV data in ISO-8859-1 (Latin-1) encoding regardless of</span>
+<span style="color: #E6DB74">    the request encoding. The response is wide-format: when multiple years are</span>
+<span style="color: #E6DB74">    requested, each year becomes a separate column rather than a row.</span>
+<span style="color: #E6DB74">    &quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">payload</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">json</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dumps(</span>
+        <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;query&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">query,</span> <span style="color: #E6DB74">&quot;response&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;format&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;CSV&quot;</span><span style="color: #F8F8F2">}},</span>
+        <span style="color: #F8F8F2">ensure_ascii</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">encode(</span><span style="color: #E6DB74">&quot;utf-8&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">api_request</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">request</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">Request(</span>
+        <span style="color: #F8F8F2">api_url,</span>
+        <span style="color: #F8F8F2">data</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">payload,</span>
+        <span style="color: #F8F8F2">headers</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;Content-Type&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;application/json&quot;</span><span style="color: #F8F8F2">},</span>
+        <span style="color: #F8F8F2">method</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;POST&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #66D9EF">with</span> <span style="color: #F8F8F2">request</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">urlopen(api_request,</span> <span style="color: #F8F8F2">timeout</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">REQUEST_TIMEOUT_SECONDS)</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">response:</span>
+            <span style="color: #959077"># SCB PxWeb sends CSV in ISO-8859-1 (Latin-1), not UTF-8</span>
+            <span style="color: #F8F8F2">csv_text</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">response</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">decode(</span><span style="color: #E6DB74">&quot;iso-8859-1&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #F8F8F2">(HTTPError,</span> <span style="color: #F8F8F2">URLError,</span> <span style="color: #A6E22E">TimeoutError</span><span style="color: #F8F8F2">,</span> <span style="color: #A6E22E">OSError</span><span style="color: #F8F8F2">)</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">error:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #F8F8F2">step,</span>
+            <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;SCB CSV request failed&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">api_url</span><span style="color: #E6DB74">} | {</span><span style="color: #F8F8F2">describe_api_error(error)</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame()</span>
+
+    <span style="color: #F8F8F2">result</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read_csv(StringIO(csv_text),</span> <span style="color: #F8F8F2">sep</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">None</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">engine</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;python&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">log_event(step,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;SCB CSV downloaded ({</span><span style="color: #F8F8F2">len(result)</span><span style="color: #E6DB74">:,} rows)&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">api_url)</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">result</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">clean_municipality_name</span><span style="color: #F8F8F2">(value:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Remove SCB numeric region codes from labels like &#39;0180 Stockholm&#39;.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">text</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">str(value)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()</span>
+    <span style="color: #F8F8F2">parts</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">text</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">split(</span><span style="color: #E6DB74">&quot; &quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">1</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">len(parts)</span> <span style="color: #FF4689">==</span> <span style="color: #AE81FF">2</span> <span style="color: #FF4689">and</span> <span style="color: #F8F8F2">parts[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isdigit():</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">parts[</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">text</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">normalize_number</span><span style="color: #F8F8F2">(value:</span> <span style="color: #F8F8F2">object)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">float</span> <span style="color: #FF4689">|</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Convert SCB number strings to float values.&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isna(value):</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #66D9EF">None</span>
+    <span style="color: #F8F8F2">text</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">str(value)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">replace(</span><span style="color: #E6DB74">&quot; &quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">replace(</span><span style="color: #E6DB74">&quot;,&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;.&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">text</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;..&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;.&quot;</span><span style="color: #F8F8F2">}:</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #66D9EF">None</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">float(text)</span>
+</pre></div>
+</section><section class="cell markdown-cell"><h2>Step 1 — Load the MYH municipalities</h2>
+<p>We only request SCB data for municipalities that actually appear in the MYH application data.</p>
+<p>This keeps the API queries small and avoids wasting the rate limit on municipalities that are irrelevant to the project.</p>
+<p>Two values are excluded:</p>
+<ul>
+<li><code>NaN</code> / empty strings — rows where no municipality was recorded in the source Excel</li>
+<li><code>&quot;Flera kommuner&quot;</code> — a special MYH marker meaning the application spans multiple municipalities; it is not a real municipality name</li>
+</ul>
+<p>The result is a Python set of ~179 Swedish municipality names used as the query scope for all SCB requests.</p></section><section class="cell"><div class="code-header"><span>Code cell 3</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">applications</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read_csv(APPLICATIONS_PATH,</span> <span style="color: #F8F8F2">encoding</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;utf-8-sig&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">myh_municipalities</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;kommun&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna()</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(str)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">str</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">loc[</span><span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">series:</span> <span style="color: #F8F8F2">series</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">ne(</span><span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">&amp;</span> <span style="color: #F8F8F2">series</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">ne(</span><span style="color: #E6DB74">&quot;Flera kommuner&quot;</span><span style="color: #F8F8F2">)]</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">unique()</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">myh_municipality_names</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">set(myh_municipalities)</span>
+<span style="color: #F8F8F2">len(myh_municipality_names)</span>
+
+<span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;source&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;Loaded {</span><span style="color: #F8F8F2">len(myh_municipality_names)</span><span style="color: #E6DB74">} MYH municipalities&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+</section><section class="cell markdown-cell"><h2>Step 2 — Fetch population from SCB (BefolkningNy)</h2>
+<p><strong>Table:</strong> <code>BE/BE0101/BE0101A/BefolkningNy</code> — Population by region, age, sex, and marital status.</p>
+<p>We query with <code>Alder = &quot;tot&quot;</code> (totalt ålder — all ages summed) and leave sex and marital status unspecified. When those dimensions are omitted from the PxWeb query, SCB automatically returns the aggregate total, so we get one row per municipality with the full population count.</p>
+<p><strong>Why population?</strong></p>
+<p>Raw application counts favour large cities. Stockholm has ~1 million residents and will naturally have more YH applications than Kiruna with ~25 000 residents. Expressing applications per 100 000 residents gives a fair comparison of how actively each municipality participates in YH education, regardless of city size.</p>
+<p><strong>Note on years:</strong> BefolkningNy has data from 1968 through 2024. The year 2025 is excluded from the query because that data has not yet been published by SCB. Applications from 2025 will use 2024 population figures in the dashboard (the API picks the most recent available year for each municipality).</p></section><section class="cell"><div class="code-header"><span>Code cell 4</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">population_metadata</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">fetch_metadata(POPULATION_API_URL,</span> <span style="color: #E6DB74">&quot;population metadata&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">population_raw</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame()</span>
+<span style="color: #F8F8F2">population_municipality_codes:</span> <span style="color: #F8F8F2">dict[str,</span> <span style="color: #F8F8F2">str]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{}</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">population_metadata</span> <span style="color: #FF4689">is</span> <span style="color: #FF4689">not</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">population_municipality_codes</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">municipality_code_map(population_metadata)</span>
+        <span style="color: #F8F8F2">selected_population_codes</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+            <span style="color: #F8F8F2">population_municipality_codes[name]</span>
+            <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">name</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">sorted(myh_municipality_names)</span>
+            <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">name</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">population_municipality_codes</span>
+        <span style="color: #F8F8F2">]</span>
+
+        <span style="color: #F8F8F2">population_content_code</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">code_matching_text(</span>
+            <span style="color: #F8F8F2">population_metadata,</span>
+            <span style="color: #E6DB74">&quot;ContentsCode&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;Folkmangd&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">population_years</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[year</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">year</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">YEARS</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">year</span> <span style="color: #FF4689">!=</span> <span style="color: #E6DB74">&quot;2025&quot;</span><span style="color: #F8F8F2">]</span>
+
+        <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">selected_population_codes:</span>
+            <span style="color: #F8F8F2">log_event(</span>
+                <span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;No MYH municipalities matched SCB municipality codes&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">elif</span> <span style="color: #F8F8F2">population_content_code</span> <span style="color: #FF4689">is</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #F8F8F2">log_event(</span>
+                <span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Population content code could not be resolved&quot;</span>
+            <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #F8F8F2">population_raw</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">post_scb_csv(</span>
+                <span style="color: #F8F8F2">POPULATION_API_URL,</span>
+                <span style="color: #F8F8F2">[</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Region&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+                            <span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span>
+                            <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">selected_population_codes,</span>
+                        <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Alder&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;tot&quot;</span><span style="color: #F8F8F2">]},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;ContentsCode&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+                            <span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span>
+                            <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[population_content_code],</span>
+                        <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tid&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">population_years},</span>
+                    <span style="color: #F8F8F2">},</span>
+                <span style="color: #F8F8F2">],</span>
+                <span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">error:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Population preparation failed&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(error))</span>
+
+<span style="color: #F8F8F2">population_raw</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">head()</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>region</th>
+      <th>ålder</th>
+      <th>Folkmängd 2018</th>
+      <th>Folkmängd 2019</th>
+      <th>Folkmängd 2020</th>
+      <th>Folkmängd 2021</th>
+      <th>Folkmängd 2022</th>
+      <th>Folkmängd 2023</th>
+      <th>Folkmängd 2024</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>0114 Upplands Väsby</td>
+      <td>totalt ålder</td>
+      <td>45543</td>
+      <td>46786</td>
+      <td>47184</td>
+      <td>47820</td>
+      <td>49262</td>
+      <td>50110</td>
+      <td>50323</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>0120 Värmdö</td>
+      <td>totalt ålder</td>
+      <td>44397</td>
+      <td>45000</td>
+      <td>45566</td>
+      <td>46232</td>
+      <td>46457</td>
+      <td>46637</td>
+      <td>46635</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>0123 Järfälla</td>
+      <td>totalt ålder</td>
+      <td>78480</td>
+      <td>79990</td>
+      <td>81274</td>
+      <td>83170</td>
+      <td>85460</td>
+      <td>86330</td>
+      <td>88950</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>0125 Ekerö</td>
+      <td>totalt ålder</td>
+      <td>28308</td>
+      <td>28690</td>
+      <td>28879</td>
+      <td>29096</td>
+      <td>29123</td>
+      <td>28808</td>
+      <td>28910</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>0126 Huddinge</td>
+      <td>totalt ålder</td>
+      <td>111722</td>
+      <td>112848</td>
+      <td>113234</td>
+      <td>113951</td>
+      <td>114504</td>
+      <td>113920</td>
+      <td>114304</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section><section class="cell markdown-cell"><h2>Step 3 — Fetch labour market data from SCB (ArbStatusAr)</h2>
+<p><strong>Table:</strong> <code>AM/AM0210/AM0210A/ArbStatusAr</code> — Labour market status by municipality, sex, age group, and birth region.</p>
+<p>We request two measures in one query:</p>
+<ul>
+<li><code>arbetslöshet</code> — unemployment rate as a percentage of the workforce</li>
+<li><code>sysselsättningsgrad</code> — employment rate as a percentage of the working-age population</li>
+</ul>
+<p>Filters applied:</p>
+<ul>
+<li><strong>Kön (sex):</strong> <code>totalt</code> (code <code>1+2</code>) — both men and women combined</li>
+<li><strong>Ålder (age):</strong> <code>20-64 år</code> — standard working-age definition used by SCB/Eurostat</li>
+<li><strong>Födelseregion (birth region):</strong> <code>totalt</code> — all residents regardless of where they were born</li>
+</ul>
+<p><strong>Why labour market context?</strong></p>
+<p>A municipality with high unemployment might have greater demand for retraining programmes (YH education is explicitly designed to address labour market needs). A municipality with a strong job market might have more employer-driven applications. These correlations can surface interesting patterns in the dashboard.</p>
+<p><strong>Note on years:</strong> ArbStatusAr starts in <strong>2020</strong>. Municipalities in the 2018 and 2019 data will have <code>null</code> in the <code>employment_rate_percent</code> and <code>unemployment_rate_percent</code> columns. This is expected and documented in the output.</p></section><section class="cell"><div class="code-header"><span>Code cell 5</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">labour_metadata</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">fetch_metadata(LABOUR_MARKET_API_URL,</span> <span style="color: #E6DB74">&quot;labour metadata&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">labour_raw</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame()</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">labour_metadata</span> <span style="color: #FF4689">is</span> <span style="color: #FF4689">not</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">labour_municipality_codes</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">municipality_code_map(labour_metadata)</span>
+        <span style="color: #F8F8F2">selected_labour_codes</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+            <span style="color: #F8F8F2">labour_municipality_codes[name]</span>
+            <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">name</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">sorted(myh_municipality_names)</span>
+            <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">name</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">labour_municipality_codes</span>
+        <span style="color: #F8F8F2">]</span>
+
+        <span style="color: #F8F8F2">unemployment_code</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">code_matching_text(</span>
+            <span style="color: #F8F8F2">labour_metadata,</span> <span style="color: #E6DB74">&quot;ContentsCode&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;arbetsloshet&quot;</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">employment_rate_code</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">code_matching_text(</span>
+            <span style="color: #F8F8F2">labour_metadata,</span> <span style="color: #E6DB74">&quot;ContentsCode&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;sysselsattningsgrad&quot;</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">total_sex_code</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">code_matching_text(labour_metadata,</span> <span style="color: #E6DB74">&quot;Kon&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;totalt&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">total_birth_region_code</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">code_matching_text(</span>
+            <span style="color: #F8F8F2">labour_metadata,</span> <span style="color: #E6DB74">&quot;Fodelseregion&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;totalt&quot;</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #959077"># Use LABOUR_MARKET_AGE_GROUP (&quot;20-64 år&quot;) to find the matching age-range code</span>
+        <span style="color: #F8F8F2">age_group_code</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">code_starting_with_text(</span>
+            <span style="color: #F8F8F2">labour_metadata,</span> <span style="color: #E6DB74">&quot;Alder&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">LABOUR_MARKET_AGE_GROUP</span>
+        <span style="color: #F8F8F2">)</span>
+
+        <span style="color: #F8F8F2">required_codes</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+            <span style="color: #F8F8F2">unemployment_code,</span>
+            <span style="color: #F8F8F2">employment_rate_code,</span>
+            <span style="color: #F8F8F2">total_sex_code,</span>
+            <span style="color: #F8F8F2">total_birth_region_code,</span>
+            <span style="color: #F8F8F2">age_group_code,</span>
+        <span style="color: #F8F8F2">]</span>
+
+        <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">selected_labour_codes:</span>
+            <span style="color: #F8F8F2">log_event(</span>
+                <span style="color: #E6DB74">&quot;labour&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;No MYH municipalities matched SCB municipality codes&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">elif</span> <span style="color: #F8F8F2">any(code</span> <span style="color: #FF4689">is</span> <span style="color: #66D9EF">None</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">code</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">required_codes):</span>
+            <span style="color: #F8F8F2">log_event(</span>
+                <span style="color: #E6DB74">&quot;labour&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;One or more required BAS codes could not be resolved&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #F8F8F2">labour_raw</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">post_scb_csv(</span>
+                <span style="color: #F8F8F2">LABOUR_MARKET_API_URL,</span>
+                <span style="color: #F8F8F2">[</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Region&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+                            <span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span>
+                            <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">selected_labour_codes,</span>
+                        <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Kon&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[total_sex_code]},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Alder&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[age_group_code]},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Fodelseregion&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+                            <span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span>
+                            <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[total_birth_region_code],</span>
+                        <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;ContentsCode&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+                            <span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span>
+                            <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[unemployment_code,</span> <span style="color: #F8F8F2">employment_rate_code],</span>
+                        <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">},</span>
+                    <span style="color: #F8F8F2">{</span>
+                        <span style="color: #E6DB74">&quot;code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tid&quot;</span><span style="color: #F8F8F2">,</span>
+                        <span style="color: #E6DB74">&quot;selection&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;filter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;item&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">LABOUR_MARKET_YEARS},</span>
+                    <span style="color: #F8F8F2">},</span>
+                <span style="color: #F8F8F2">],</span>
+                <span style="color: #E6DB74">&quot;labour&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">error:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;labour&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Labour-market preparation failed&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(error))</span>
+
+<span style="color: #F8F8F2">labour_raw</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">head()</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>region</th>
+      <th>kön</th>
+      <th>ålder</th>
+      <th>födelseregion</th>
+      <th>arbetslöshet 2020</th>
+      <th>arbetslöshet 2021</th>
+      <th>arbetslöshet 2022</th>
+      <th>arbetslöshet 2023</th>
+      <th>arbetslöshet 2024</th>
+      <th>arbetslöshet 2025</th>
+      <th>sysselsättningsgrad 2020</th>
+      <th>sysselsättningsgrad 2021</th>
+      <th>sysselsättningsgrad 2022</th>
+      <th>sysselsättningsgrad 2023</th>
+      <th>sysselsättningsgrad 2024</th>
+      <th>sysselsättningsgrad 2025</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>0114 Upplands Väsby</td>
+      <td>totalt</td>
+      <td>20-64 år</td>
+      <td>totalt</td>
+      <td>6.9</td>
+      <td>7.2</td>
+      <td>5.5</td>
+      <td>5.5</td>
+      <td>6.1</td>
+      <td>6.7</td>
+      <td>78.4</td>
+      <td>78.4</td>
+      <td>80.0</td>
+      <td>80.0</td>
+      <td>79.6</td>
+      <td>79.1</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>0120 Värmdö</td>
+      <td>totalt</td>
+      <td>20-64 år</td>
+      <td>totalt</td>
+      <td>3.8</td>
+      <td>3.6</td>
+      <td>2.8</td>
+      <td>2.7</td>
+      <td>3.2</td>
+      <td>3.2</td>
+      <td>82.9</td>
+      <td>83.3</td>
+      <td>84.3</td>
+      <td>84.5</td>
+      <td>84.0</td>
+      <td>83.7</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>0123 Järfälla</td>
+      <td>totalt</td>
+      <td>20-64 år</td>
+      <td>totalt</td>
+      <td>7.3</td>
+      <td>7.4</td>
+      <td>6.2</td>
+      <td>5.8</td>
+      <td>6.4</td>
+      <td>7.1</td>
+      <td>78.3</td>
+      <td>78.6</td>
+      <td>79.6</td>
+      <td>79.8</td>
+      <td>79.4</td>
+      <td>78.7</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>0125 Ekerö</td>
+      <td>totalt</td>
+      <td>20-64 år</td>
+      <td>totalt</td>
+      <td>3.6</td>
+      <td>3.6</td>
+      <td>2.6</td>
+      <td>2.8</td>
+      <td>2.9</td>
+      <td>3.3</td>
+      <td>82.6</td>
+      <td>82.2</td>
+      <td>83.0</td>
+      <td>83.0</td>
+      <td>83.0</td>
+      <td>82.7</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>0126 Huddinge</td>
+      <td>totalt</td>
+      <td>20-64 år</td>
+      <td>totalt</td>
+      <td>6.8</td>
+      <td>7.0</td>
+      <td>5.5</td>
+      <td>5.2</td>
+      <td>5.7</td>
+      <td>6.0</td>
+      <td>77.3</td>
+      <td>77.5</td>
+      <td>79.1</td>
+      <td>79.3</td>
+      <td>78.8</td>
+      <td>78.4</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section><section class="cell markdown-cell"><h2>Step 4 — Prepare the final enrichment table</h2>
+<p>Both SCB responses arrive in <strong>wide format</strong> — years are column name suffixes rather than row values:</p>
+<p>```</p>
+<p>Population response:</p>
+<p>region           | Folkmängd 2018 | Folkmängd 2019 | ... | Folkmängd 2024</p>
+<p>Labour market response:</p>
+<p>region           | arbetslöshet 2020 | ... | sysselsättningsgrad 2025</p>
+<p>```</p>
+<p>The prepare step converts these to <strong>long format</strong> (one row per municipality × year) using <code>melt</code>, then joins the two sources.</p>
+<h3>Transformation steps</h3>
+<p>1. <strong>Population melt</strong> — find all columns with a trailing 4-digit year, melt to <code>(municipality, year, population)</code></p>
+<p>2. <strong>Labour melt</strong> — same pattern, then strip the year suffix from the column name to get the metric name, then <code>pivot_table</code> to put <code>unemployment_rate_percent</code> and <code>employment_rate_percent</code> side by side</p>
+<p>3. <strong>Municipality code join</strong> — attach the official SCB 4-digit code for each municipality (e.g. <code>0180</code> for Stockholm)</p>
+<p>4. <strong>Left merge</strong> — population is the primary source; labour market data is joined with <code>how=&quot;left&quot;</code> so municipalities with no labour market match still appear in the output (with <code>null</code> rate values)</p>
+<h3>Final schema</h3>
+<p>```</p>
+<p>municipality  municipality_code  year  population  employment_rate_percent  unemployment_rate_percent</p>
+<p>Stockholm     0180               2022  984748      79.4                     4.8</p>
+<p>Stockholm     0180               2023  988943      79.4                     4.7</p>
+<p>...</p>
+<p>```</p></section><section class="cell"><div class="code-header"><span>Code cell 6</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #FF4689">import</span><span style="color: #F8F8F2"> re </span><span style="color: #66D9EF">as</span><span style="color: #F8F8F2"> _re</span>
+
+<span style="color: #F8F8F2">_YEAR_SUFFIX</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">_re</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">compile(</span><span style="color: #E6DB74">r&quot;\s*(\d{4})$&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">municipality_context_columns</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+    <span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;municipality_code&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;employment_rate_percent&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;unemployment_rate_percent&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">_year_value_columns</span><span style="color: #F8F8F2">(dataframe:</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame,</span> <span style="color: #F8F8F2">exclude_region_col:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">list[str]:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Return columns whose name ends with a 4-digit year (SCB wide format).&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">[</span>
+        <span style="color: #F8F8F2">col</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">dataframe</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">!=</span> <span style="color: #F8F8F2">exclude_region_col</span> <span style="color: #FF4689">and</span> <span style="color: #F8F8F2">_YEAR_SUFFIX</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">search(col)</span>
+    <span style="color: #F8F8F2">]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">_extract_year</span><span style="color: #F8F8F2">(label:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">int</span> <span style="color: #FF4689">|</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Extract the trailing 4-digit year from a wide-format column name.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">match</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">_YEAR_SUFFIX</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">search(label)</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">int(match</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">group(</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">))</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">match</span> <span style="color: #66D9EF">else</span> <span style="color: #66D9EF">None</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">_strip_year</span><span style="color: #F8F8F2">(label:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Remove the trailing year from a wide-format column name.&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">_YEAR_SUFFIX</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sub(</span><span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">label)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()</span>
+
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">population_raw</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">empty:</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;prepare&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;Population data is missing, so no SCB context file can be prepared&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">municipality_context</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">municipality_context_columns)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #959077"># ── Population: SCB PxWeb returns wide format ──────────────────────────────</span>
+        <span style="color: #959077"># When multiple years are requested, each year becomes its own column:</span>
+        <span style="color: #959077"># &#39;region&#39;, &#39;ålder&#39;, &#39;Folkmängd 2018&#39;, &#39;Folkmängd 2019&#39;, ..., &#39;Folkmängd 2024&#39;</span>
+        <span style="color: #959077"># We melt these to long format: one row per municipality × year.</span>
+        <span style="color: #F8F8F2">population_region_column</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">column_matching_text(population_raw,</span> <span style="color: #E6DB74">&quot;region&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">population_region_column</span> <span style="color: #FF4689">is</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #66D9EF">raise</span> <span style="color: #A6E22E">ValueError</span><span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;Population dataframe missing &#39;region&#39; column&quot;</span><span style="color: #F8F8F2">)</span>
+
+        <span style="color: #F8F8F2">population_value_columns</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">_year_value_columns(</span>
+            <span style="color: #F8F8F2">population_raw,</span> <span style="color: #F8F8F2">population_region_column</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">population_value_columns:</span>
+            <span style="color: #66D9EF">raise</span> <span style="color: #A6E22E">ValueError</span><span style="color: #F8F8F2">(</span>
+                <span style="color: #E6DB74">&quot;Population dataframe has no year-suffixed columns (expected &#39;Folkmängd YYYY&#39;)&quot;</span>
+            <span style="color: #F8F8F2">)</span>
+
+        <span style="color: #F8F8F2">population</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+            <span style="color: #F8F8F2">population_raw[[population_region_column]</span> <span style="color: #FF4689">+</span> <span style="color: #F8F8F2">population_value_columns]</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">melt(</span>
+                <span style="color: #F8F8F2">id_vars</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[population_region_column],</span>
+                <span style="color: #F8F8F2">var_name</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;year_label&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #F8F8F2">value_name</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">rename(columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">{population_region_column:</span> <span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">})</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(</span>
+            <span style="color: #F8F8F2">clean_municipality_name</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;year_label&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(_extract_year)</span>
+        <span style="color: #F8F8F2">population</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">population</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna(subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">])</span>
+        <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(int)</span>
+        <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(normalize_number)</span>
+        <span style="color: #F8F8F2">population</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">population[[</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">]]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">copy()</span>
+        <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">population[</span><span style="color: #E6DB74">&quot;population&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(</span><span style="color: #E6DB74">&quot;Int64&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;prepare&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;Population data shaped ({</span><span style="color: #F8F8F2">len(population)</span><span style="color: #E6DB74">:,} municipality-year rows)&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+
+        <span style="color: #959077"># ── Labour market: same wide format ────────────────────────────────────────</span>
+        <span style="color: #959077"># SCB returns one row per municipality with year-labelled metric columns:</span>
+        <span style="color: #959077"># &#39;region&#39;, &#39;kön&#39;, &#39;ålder&#39;, &#39;födelseregion&#39;,</span>
+        <span style="color: #959077"># &#39;arbetslöshet 2020&#39;, ..., &#39;sysselsättningsgrad 2025&#39;</span>
+        <span style="color: #959077"># We melt, extract year + metric name, then pivot to get two rate columns.</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">labour_raw</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">empty:</span>
+            <span style="color: #F8F8F2">log_event(</span>
+                <span style="color: #E6DB74">&quot;prepare&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;Labour-market data is missing; exporting population-only context&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+            <span style="color: #F8F8F2">labour_wide</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(</span>
+                <span style="color: #F8F8F2">columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span>
+                    <span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">,</span>
+                    <span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">,</span>
+                    <span style="color: #E6DB74">&quot;employment_rate_percent&quot;</span><span style="color: #F8F8F2">,</span>
+                    <span style="color: #E6DB74">&quot;unemployment_rate_percent&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #F8F8F2">]</span>
+            <span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #F8F8F2">labour_region_column</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">column_matching_text(labour_raw,</span> <span style="color: #E6DB74">&quot;region&quot;</span><span style="color: #F8F8F2">)</span>
+            <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">labour_region_column</span> <span style="color: #FF4689">is</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+                <span style="color: #66D9EF">raise</span> <span style="color: #A6E22E">ValueError</span><span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;Labour dataframe missing &#39;region&#39; column&quot;</span><span style="color: #F8F8F2">)</span>
+
+            <span style="color: #F8F8F2">labour_value_columns</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">_year_value_columns(labour_raw,</span> <span style="color: #F8F8F2">labour_region_column)</span>
+            <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">labour_value_columns:</span>
+                <span style="color: #66D9EF">raise</span> <span style="color: #A6E22E">ValueError</span><span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;Labour dataframe has no year-suffixed columns&quot;</span><span style="color: #F8F8F2">)</span>
+
+            <span style="color: #F8F8F2">labour</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+                <span style="color: #F8F8F2">labour_raw[[labour_region_column]</span> <span style="color: #FF4689">+</span> <span style="color: #F8F8F2">labour_value_columns]</span>
+                <span style="color: #FF4689">.</span><span style="color: #F8F8F2">melt(</span>
+                    <span style="color: #F8F8F2">id_vars</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[labour_region_column],</span>
+                    <span style="color: #F8F8F2">var_name</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;metric_year_label&quot;</span><span style="color: #F8F8F2">,</span>
+                    <span style="color: #F8F8F2">value_name</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;value&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #F8F8F2">)</span>
+                <span style="color: #FF4689">.</span><span style="color: #F8F8F2">rename(columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">{labour_region_column:</span> <span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">})</span>
+            <span style="color: #F8F8F2">)</span>
+            <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(clean_municipality_name)</span>
+            <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;metric_year_label&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(_extract_year)</span>
+            <span style="color: #F8F8F2">labour</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">labour</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna(subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">])</span>
+            <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(int)</span>
+            <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;value&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;value&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(normalize_number)</span>
+            <span style="color: #959077"># &#39;arbetslöshet 2022&#39; → strip year → normalize → &#39;arbetsloshet&#39;</span>
+            <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;metric_normalized&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+                <span style="color: #F8F8F2">labour[</span><span style="color: #E6DB74">&quot;metric_year_label&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(_strip_year)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(normalize_label)</span>
+            <span style="color: #F8F8F2">)</span>
+
+            <span style="color: #F8F8F2">labour_wide</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">labour</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">pivot_table(</span>
+                <span style="color: #F8F8F2">index</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">],</span>
+                <span style="color: #F8F8F2">columns</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;metric_normalized&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #F8F8F2">values</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;value&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #F8F8F2">aggfunc</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;first&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">reset_index()</span>
+            <span style="color: #F8F8F2">labour_wide</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">name</span> <span style="color: #FF4689">=</span> <span style="color: #66D9EF">None</span>
+            <span style="color: #F8F8F2">labour_wide</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">labour_wide</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">rename(</span>
+                <span style="color: #F8F8F2">columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">{</span>
+                    <span style="color: #E6DB74">&quot;arbetsloshet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;unemployment_rate_percent&quot;</span><span style="color: #F8F8F2">,</span>
+                    <span style="color: #E6DB74">&quot;sysselsattningsgrad&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;employment_rate_percent&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #F8F8F2">}</span>
+            <span style="color: #F8F8F2">)</span>
+            <span style="color: #959077"># Guard: ensure both rate columns exist even if the pivot produced neither</span>
+            <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">rate_col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;unemployment_rate_percent&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;employment_rate_percent&quot;</span><span style="color: #F8F8F2">):</span>
+                <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">rate_col</span> <span style="color: #FF4689">not</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">labour_wide</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+                    <span style="color: #F8F8F2">labour_wide[rate_col]</span> <span style="color: #FF4689">=</span> <span style="color: #66D9EF">None</span>
+            <span style="color: #F8F8F2">log_event(</span>
+                <span style="color: #E6DB74">&quot;prepare&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">f&quot;Labour market data shaped ({</span><span style="color: #F8F8F2">len(labour_wide)</span><span style="color: #E6DB74">:,} municipality-year rows)&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">)</span>
+
+        <span style="color: #959077"># ── Municipality code lookup ────────────────────────────────────────────────</span>
+        <span style="color: #959077"># Map each Swedish municipality name to its 4-digit SCB code so the</span>
+        <span style="color: #959077"># dashboard can reference official identifiers alongside our own naming.</span>
+        <span style="color: #F8F8F2">municipality_codes</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(</span>
+            <span style="color: #F8F8F2">[</span>
+                <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">name,</span> <span style="color: #E6DB74">&quot;municipality_code&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">code}</span>
+                <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">name,</span> <span style="color: #F8F8F2">code</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">population_municipality_codes</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items()</span>
+                <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">name</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">myh_municipality_names</span>
+            <span style="color: #F8F8F2">]</span>
+        <span style="color: #F8F8F2">)</span>
+
+        <span style="color: #F8F8F2">municipality_context</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+            <span style="color: #F8F8F2">population</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">merge(labour_wide,</span> <span style="color: #F8F8F2">on</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">how</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;left&quot;</span><span style="color: #F8F8F2">)</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">merge(municipality_codes,</span> <span style="color: #F8F8F2">on</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">how</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;left&quot;</span><span style="color: #F8F8F2">)</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">sort_values([</span><span style="color: #E6DB74">&quot;municipality&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;year&quot;</span><span style="color: #F8F8F2">])</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">reset_index(drop</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;prepare&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;Final table: {</span><span style="color: #F8F8F2">len(municipality_context)</span><span style="color: #E6DB74">:,} rows, {</span><span style="color: #F8F8F2">municipality_context[</span><span style="color: #E6DB74">&#39;municipality&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">nunique()</span><span style="color: #E6DB74">} municipalities&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">error:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;prepare&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Failed to prepare SCB context table&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(error))</span>
+        <span style="color: #F8F8F2">municipality_context</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">municipality_context_columns)</span>
+
+<span style="color: #F8F8F2">municipality_context</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">head(</span><span style="color: #AE81FF">10</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>municipality</th>
+      <th>year</th>
+      <th>population</th>
+      <th>unemployment_rate_percent</th>
+      <th>employment_rate_percent</th>
+      <th>municipality_code</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>Alingsås</td>
+      <td>2018</td>
+      <td>41070</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>1489</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>Alingsås</td>
+      <td>2019</td>
+      <td>41420</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>1489</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>Alingsås</td>
+      <td>2020</td>
+      <td>41602</td>
+      <td>4.6</td>
+      <td>83.0</td>
+      <td>1489</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>Alingsås</td>
+      <td>2021</td>
+      <td>41853</td>
+      <td>4.3</td>
+      <td>83.5</td>
+      <td>1489</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>Alingsås</td>
+      <td>2022</td>
+      <td>42199</td>
+      <td>3.4</td>
+      <td>84.7</td>
+      <td>1489</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>Alingsås</td>
+      <td>2023</td>
+      <td>42382</td>
+      <td>3.3</td>
+      <td>85.3</td>
+      <td>1489</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>Alingsås</td>
+      <td>2024</td>
+      <td>42722</td>
+      <td>3.7</td>
+      <td>84.6</td>
+      <td>1489</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>Arboga</td>
+      <td>2018</td>
+      <td>14138</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>1984</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>Arboga</td>
+      <td>2019</td>
+      <td>14087</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>1984</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>Arboga</td>
+      <td>2020</td>
+      <td>14039</td>
+      <td>8.0</td>
+      <td>77.7</td>
+      <td>1984</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section><section class="cell markdown-cell"><h2>Step 5 — Export</h2>
+<p>Writes <code>scb_municipality_context.csv</code> to the <code>external_enrichment/data/</code> folder.</p>
+<p>The file is <strong>not committed to git</strong> (covered by <code>.gitignore</code>). To update the enrichment data, simply re-run this notebook. The API will automatically pick up the new file on the next request to <code>/stats/municipality-enrichment</code>.</p>
+<p>If population or labour market data could not be fetched, no file is written and the enrichment log below explains why.</p></section><section class="cell"><div class="code-header"><span>Code cell 7</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">municipality_context</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">empty:</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;export&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;No SCB context rows to export&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;No SCB context file was written. See ENRICHMENT_LOG below.&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">OUTPUT_DIR</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mkdir(parents</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">exist_ok</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">municipality_context</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">to_csv(OUTPUT_PATH,</span> <span style="color: #F8F8F2">index</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">encoding</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;utf-8-sig&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;export&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;CSV written ({</span><span style="color: #F8F8F2">len(municipality_context)</span><span style="color: #E6DB74">:,} rows)&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">str(OUTPUT_PATH),</span>
+        <span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Wrote {</span><span style="color: #F8F8F2">len(municipality_context)</span><span style="color: #E6DB74">:,} rows to {</span><span style="color: #F8F8F2">OUTPUT_PATH</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">OSError</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">error:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;export&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Failed to write SCB context CSV&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(error))</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;No SCB context file was written. See ENRICHMENT_LOG below.&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">show_enrichment_log()</span>
+</pre></div>
+<div class="output"><pre>Wrote 1,246 rows to myh-data-pipeline\external_enrichment\data\scb_municipality_context.csv
+</pre><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Step</th>
+      <th>Level</th>
+      <th>Message</th>
+      <th>Detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>setup</td>
+      <td>ok</td>
+      <td>Project paths resolved</td>
+      <td>myh-data-pipeline</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>source</td>
+      <td>ok</td>
+      <td>Loaded 179 MYH municipalities</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>population metadata</td>
+      <td>ok</td>
+      <td>SCB metadata loaded</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/BE/B...</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>population</td>
+      <td>ok</td>
+      <td>SCB CSV downloaded (178 rows)</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/BE/B...</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>labour metadata</td>
+      <td>ok</td>
+      <td>SCB metadata loaded</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/AM/A...</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>labour</td>
+      <td>ok</td>
+      <td>SCB CSV downloaded (178 rows)</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/AM/A...</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>prepare</td>
+      <td>ok</td>
+      <td>Population data shaped (1,246 municipality-yea...</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>prepare</td>
+      <td>ok</td>
+      <td>Labour market data shaped (1,068 municipality-...</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>prepare</td>
+      <td>ok</td>
+      <td>Final table: 1,246 rows, 178 municipalities</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>export</td>
+      <td>ok</td>
+      <td>CSV written (1,246 rows)</td>
+      <td>myh-data-pipeline\...</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section><section class="cell markdown-cell"><h2>Enrichment log</h2>
+<p>Every step appends a record to <code>ENRICHMENT_LOG</code>. Statuses follow the same convention as <code>data_preparation.ipynb</code>:</p>
+<table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td><code>ok</code></td><td>Step completed successfully</td></tr><tr><td><code>warning</code></td><td>Step completed with a non-fatal issue (e.g. labour data missing, exporting population only)</td></tr><tr><td><code>error</code></td><td>Step failed; output file may be incomplete or absent</td></tr></tbody></table>
+<p>A successful run should show <code>ok</code> for every row. If any row shows <code>error</code>, read the <code>Detail</code> column to understand why.</p></section><section class="cell"><div class="code-header"><span>Code cell 8</span><span>scb_enrichment</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(ENRICHMENT_LOG)</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Step</th>
+      <th>Level</th>
+      <th>Message</th>
+      <th>Detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>setup</td>
+      <td>ok</td>
+      <td>Project paths resolved</td>
+      <td>myh-data-pipeline</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>source</td>
+      <td>ok</td>
+      <td>Loaded 179 MYH municipalities</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>population metadata</td>
+      <td>ok</td>
+      <td>SCB metadata loaded</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/BE/B...</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>population</td>
+      <td>ok</td>
+      <td>SCB CSV downloaded (178 rows)</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/BE/B...</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>labour metadata</td>
+      <td>ok</td>
+      <td>SCB metadata loaded</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/AM/A...</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>labour</td>
+      <td>ok</td>
+      <td>SCB CSV downloaded (178 rows)</td>
+      <td>https://api.scb.se/OV0104/v1/doris/sv/ssd/AM/A...</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>prepare</td>
+      <td>ok</td>
+      <td>Population data shaped (1,246 municipality-yea...</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>prepare</td>
+      <td>ok</td>
+      <td>Labour market data shaped (1,068 municipality-...</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>prepare</td>
+      <td>ok</td>
+      <td>Final table: 1,246 rows, 178 municipalities</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>export</td>
+      <td>ok</td>
+      <td>CSV written (1,246 rows)</td>
+      <td>myh-data-pipeline\...</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section></main></body></html>

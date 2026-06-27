@@ -1,0 +1,1887 @@
+<!doctype html><html><head><meta charset="utf-8"><title>data_preparation</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0f1923;
+  --surface-1: #142231;
+  --surface-2: #1a2b3b;
+  --border: #2b4154;
+  --text: #e6edf3;
+  --muted: #9fb0bf;
+  --primary: #5aa7ff;
+  --success: #52d6a3;
+  --warning: #f4c95d;
+  --danger: #ff6b6b;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+body { padding: 28px; }
+.notebook-banner {
+  max-width: 1180px;
+  margin: 0 auto 24px auto;
+  padding: 18px 24px;
+  border: 1px solid rgba(45, 212, 191, .36);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(20,184,166,.32), rgba(15,25,35,.94) 55%, rgba(59,130,246,.25)),
+    #0f1923;
+  color: #e6fffb;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  box-shadow: 0 18px 60px -32px #2dd4bf;
+}
+.notebook {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.cell {
+  margin: 18px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+}
+.markdown-cell {
+  padding: 20px 24px;
+}
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 8px 14px;
+  color: var(--muted);
+  font: 12px/1.4 "JetBrains Mono", Consolas, monospace;
+}
+pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: 18px;
+  background: #0b121b;
+  color: var(--text);
+  font: 12px/1.65 "JetBrains Mono", Consolas, monospace;
+}
+code { color: #b6e0ff; }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 28px 0 18px;
+}
+h1, h2, h3 { color: var(--text); line-height: 1.18; }
+h1 { font-size: 32px; }
+h2 { margin-top: 26px; font-size: 24px; }
+h3 { margin-top: 22px; font-size: 18px; }
+p, li { color: var(--muted); line-height: 1.72; }
+a { color: var(--primary); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text);
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 7px 9px;
+  vertical-align: top;
+}
+th { background: var(--surface-2); }
+tr:nth-child(even) td { background: rgba(255,255,255,.025); }
+.output {
+  border-top: 1px solid var(--border);
+  background: #111d2a;
+  overflow-x: auto;
+}
+.output-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.output pre {
+  background: #111d2a;
+  color: #d4e5f5;
+}
+.status-ok { color: var(--success); }
+.status-warning { color: var(--warning); }
+.status-error { color: var(--danger); }
+/* Pygments Monokai output */
+div.highlight { margin: 0; }
+div.highlight pre {
+  margin: 0 !important;
+  padding: 18px !important;
+  overflow-x: auto !important;
+  font: 12px/1.65 "JetBrains Mono", Consolas, monospace !important;
+  border-radius: 0 !important;
+}
+</style>
+</head><body><div class="notebook-banner">MYH Data Pipeline · Notebook source and outputs</div><main class="notebook"><section class="cell markdown-cell"><div style='background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); padding: 44px 48px 38px; border-radius: 14px; margin-bottom: 4px;'>
+  <h1 style='color: #ffffff; margin: 0 0 10px; font-size: 2.3em; letter-spacing: -0.5px; font-weight: 700;'>
+    MYH Yrkesh&ouml;gskolan , Application Data Pipeline
+  </h1>
+  <p style='color: #b0c8de; margin: 0; font-size: 1.05em; line-height: 1.9;'>
+    A curated, harmonized dataset built from eight years of higher vocational education application results.<br>
+    <strong style='color: #7ec8e3;'>2018 &ndash; 2025 &nbsp;&middot;&nbsp; 8 years &nbsp;&middot;&nbsp; 9&thinsp;983 records &nbsp;&middot;&nbsp; MYH Data Pipeline Project</strong>
+  </p>
+</div></section><section class="cell markdown-cell"><h2>Overview</h2>
+<p><strong><a href="https://www.myh.se/yrkeshogskolan/resultat-ansokningsomgangar/resultat-for-program" target="_blank" rel="noreferrer">Myndigheten för yrkeshögskolan (MYH)</a></strong> publishes one Excel file per application round, containing decisions on which higher vocational education programs were approved or rejected. The files span many years but are not consistent , column names, sheet layouts, and available fields changed over time.</p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>:---</td><td>:---</td></tr><tr><td><strong>Data source</strong></td><td>MYH public Excel files , application round results</td></tr><tr><td><strong>Scope</strong></td><td>2018 – 2025 (8 application years)</td></tr><tr><td><strong>Main sheet</strong></td><td><code>Tabell 3</code> (2020–2025) · <code>Lista</code> (2018–2019)</td></tr><tr><td><strong>Output</strong></td><td><code>data/curated_applications.csv</code></td></tr><tr><td><strong>Database</strong></td><td>PostgreSQL , <code>data_pipeline_de25</code></td></tr></tbody></table>
+<h3>What this notebook does</h3>
+<p>1. Load raw files and document structural differences across years</p>
+<p>2. Define a universal harmonization schema</p>
+<p>3. Apply column renaming, value normalization, and type conversion</p>
+<p>4. Clean and standardize the unified dataset</p>
+<p>5. Enrich with computed columns</p>
+<p>6. Validate quality with automated checks</p>
+<p>7. Export the final curated dataset</p>
+<p>8. Pipeline Report</p>
+<p>9. Reflection</p></section><section class="cell"><div class="code-header"><span>Code cell 1</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #FF4689">import</span><span style="color: #F8F8F2"> warnings</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> pathlib </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">Path</span>
+
+<span style="color: #FF4689">import</span><span style="color: #F8F8F2"> pandas </span><span style="color: #66D9EF">as</span><span style="color: #F8F8F2"> pd</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> IPython.display </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">display</span>
+
+<span style="color: #959077"># Suppress openpyxl &quot;no default style&quot; warnings - cosmetic, no effect on data.</span>
+<span style="color: #F8F8F2">warnings</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">filterwarnings(</span><span style="color: #E6DB74">&quot;ignore&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_option(</span><span style="color: #E6DB74">&quot;display.max_colwidth&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">60</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #959077"># ── Paths ─────────────────────────────────────────────────────────────────────</span>
+<span style="color: #F8F8F2">BASE</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">Path</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">cwd()</span>
+<span style="color: #F8F8F2">RAW_PATH</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">BASE</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;resultat_ansokning&quot;</span>
+<span style="color: #F8F8F2">OUT_PATH</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">BASE</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;data&quot;</span>
+<span style="color: #F8F8F2">OUT_PATH</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mkdir(exist_ok</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #959077"># ── Per-year source configuration ─────────────────────────────────────────────</span>
+<span style="color: #959077"># MYH changed file structure across years:</span>
+<span style="color: #959077">#   2018-2019 : sheet &quot;Lista&quot;,    header row 0</span>
+<span style="color: #959077">#   2020-2022 : sheet &quot;Tabell 3&quot;, header row 0</span>
+<span style="color: #959077">#   2023-2024 : sheet &quot;Tabell 3&quot;, header row 5  (merged title rows above data)</span>
+<span style="color: #959077">#   2025      : sheet &quot;Tabell 3&quot;, header row 6  (one extra merged row added)</span>
+<span style="color: #F8F8F2">YEAR_CONFIG</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #AE81FF">2018</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;beslut-for-samtliga-ansokningar-sorterade-efter-utbildningsomrade-och-utbildningsnamn-2018.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Lista&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+    <span style="color: #AE81FF">2019</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;beslut-for-samtliga-ansokningar-sorterade-efter-utbildningsomrade-och-utbildningsnamn-2019.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Lista&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+    <span style="color: #AE81FF">2020</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;resultat-ansokningsomgang-2020.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tabell 3&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+    <span style="color: #AE81FF">2021</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;resultat-ansokningsomgang-2021.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tabell 3&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+    <span style="color: #AE81FF">2022</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;resultat-ansokningsomgang-2022.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tabell 3&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+    <span style="color: #AE81FF">2023</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;resultat-ansokningsomgang-2023.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tabell 3&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">5</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+    <span style="color: #AE81FF">2024</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;resultat-ansokningsomgang-2024.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tabell 3&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">5</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+    <span style="color: #AE81FF">2025</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">{</span>
+        <span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;resultat-ansokningsomgang-2025.xlsx&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Tabell 3&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">6</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">},</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #F8F8F2">print(</span>
+    <span style="color: #E6DB74">f&quot;Configuration loaded - {</span><span style="color: #F8F8F2">len(YEAR_CONFIG)</span><span style="color: #E6DB74">} years ({</span><span style="color: #F8F8F2">min(YEAR_CONFIG)</span><span style="color: #E6DB74">}-{</span><span style="color: #F8F8F2">max(YEAR_CONFIG)</span><span style="color: #E6DB74">})&quot;</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Source : {</span><span style="color: #F8F8F2">RAW_PATH</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Output : {</span><span style="color: #F8F8F2">OUT_PATH</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Configuration loaded - 8 years (2018-2025)
+Source : myh-data-pipeline\resultat_ansokning
+Output : myh-data-pipeline\data
+</pre></div></section><section class="cell"><div class="code-header"><span>Code cell 2</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># ── Pipeline event log ────────────────────────────────────────────────────────</span>
+<span style="color: #959077"># Shared list populated by every step. Use log_event() to append from any cell.</span>
+<span style="color: #959077"># The final section (Pipeline Report) renders the full log as a colour-coded table.</span>
+<span style="color: #F8F8F2">PIPELINE_LOG:</span> <span style="color: #F8F8F2">list[dict]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">log_event</span><span style="color: #F8F8F2">(step:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">level:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">message:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">detail:</span> <span style="color: #F8F8F2">str</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Append one event to the pipeline log.</span>
+
+<span style="color: #E6DB74">    level: &quot;ok&quot; | &quot;warning&quot; | &quot;error&quot;</span>
+<span style="color: #E6DB74">    &quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">PIPELINE_LOG</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+        <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;Step&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">step,</span> <span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">level,</span> <span style="color: #E6DB74">&quot;Message&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">message,</span> <span style="color: #E6DB74">&quot;Detail&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">detail}</span>
+    <span style="color: #F8F8F2">)</span>
+
+
+<span style="color: #959077"># ── Setup checks ──────────────────────────────────────────────────────────────</span>
+<span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">RAW_PATH</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">exists():</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;setup&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Source directory not found&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(RAW_PATH))</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">missing_files</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+        <span style="color: #F8F8F2">cfg[</span><span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">]</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">cfg</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">YEAR_CONFIG</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">values()</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">(RAW_PATH</span> <span style="color: #FF4689">/</span> <span style="color: #F8F8F2">cfg[</span><span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">])</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">exists()</span>
+    <span style="color: #F8F8F2">]</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">missing_files:</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">fname</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">missing_files:</span>
+            <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;setup&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Source file missing&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">fname)</span>
+    <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;setup&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;All {</span><span style="color: #F8F8F2">len(YEAR_CONFIG)</span><span style="color: #E6DB74">} source files found&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">setup_errors</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">sum(</span><span style="color: #AE81FF">1</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">e</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">PIPELINE_LOG</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">e[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span>
+    <span style="color: #E6DB74">f&quot;Setup: {&#39;OK&#39;</span><span style="color: #F8F8F2"> </span><span style="color: #66D9EF">if</span><span style="color: #F8F8F2"> </span><span style="color: #FF4689">not</span><span style="color: #F8F8F2"> setup_errors </span><span style="color: #66D9EF">else</span><span style="color: #F8F8F2"> </span><span style="color: #E6DB74">f&#39;{</span><span style="color: #F8F8F2">setup_errors</span><span style="color: #E6DB74">} error(s) - see Pipeline Report for details&#39;}&quot;</span>
+<span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Setup: OK
+</pre></div></section><section class="cell markdown-cell"><hr>
+<h2>1. Data Source &amp; Raw Exploration</h2>
+<h3>Why 2018 – 2025?</h3>
+<p>Files published before 2018 are missing critical columns , <code>Studieform</code>, <code>Studietakt %</code>, and <code>Huvudmannatyp</code> are either absent or inconsistently structured. Including them would introduce large null gaps in the most analytically useful fields. 2018 is the earliest year where all core columns are consistently present.</p>
+<p>Going back to 2018 also adds two years that use a different sheet layout (<code>Lista</code> instead of <code>Tabell 3</code>), which makes for a richer harmonization story and a more robust pipeline.</p>
+<h3>Why Tabell 3 / Lista?</h3>
+<p><code>Tabell 3</code> is the application-level table , one row per application, which is exactly what we want. <code>Tabell 4</code> exists in later years but represents municipality-level detail where a single application can appear multiple times. Mixing them would corrupt aggregations.</p>
+<p>For 2018–2019, the equivalent table is named <code>Lista</code> , it carries the same application-level granularity.</p></section><section class="cell"><div class="code-header"><span>Code cell 3</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">raw_dataframes:</span> <span style="color: #F8F8F2">dict[int,</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{}</span>
+<span style="color: #F8F8F2">raw_column_names:</span> <span style="color: #F8F8F2">dict[int,</span> <span style="color: #F8F8F2">list[str]]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{}</span>
+<span style="color: #F8F8F2">exploration_rows</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">year,</span> <span style="color: #F8F8F2">config</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">YEAR_CONFIG</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items():</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">year_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read_excel(</span>
+            <span style="color: #F8F8F2">RAW_PATH</span> <span style="color: #FF4689">/</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">],</span>
+            <span style="color: #F8F8F2">sheet_name</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">],</span>
+            <span style="color: #F8F8F2">header</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">],</span>
+        <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">FileNotFoundError</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;explore&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: file not found&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">])</span>
+        <span style="color: #66D9EF">continue</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">exc:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;explore&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: could not read file&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(exc))</span>
+        <span style="color: #66D9EF">continue</span>
+
+    <span style="color: #959077"># Drop empty columns and embedded notes/junk columns (common in 2019)</span>
+    <span style="color: #F8F8F2">year_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna(axis</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">how</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;all&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">year_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">year_df[</span>
+        <span style="color: #F8F8F2">[</span>
+            <span style="color: #F8F8F2">c</span>
+            <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">c</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns</span>
+            <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">str(c)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">startswith(</span><span style="color: #E6DB74">&quot;Unnamed&quot;</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">and</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">str(c)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">startswith(</span><span style="color: #E6DB74">&quot;Notera&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">]</span>
+
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">len(year_df)</span> <span style="color: #FF4689">==</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;explore&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: 0 rows after loading&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">continue</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">len(year_df)</span> <span style="color: #FF4689">&lt;</span> <span style="color: #AE81FF">100</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;explore&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: unexpectedly few rows&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">len(year_df)</span><span style="color: #E6DB74">} rows&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+
+    <span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;Beslut&quot;</span> <span style="color: #FF4689">not</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;explore&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: &#39;Beslut&#39; column missing from raw file&quot;</span>
+        <span style="color: #F8F8F2">)</span>
+
+    <span style="color: #F8F8F2">raw_dataframes[year]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">year_df</span>
+    <span style="color: #F8F8F2">raw_column_names[year]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">list(year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span>
+
+    <span style="color: #F8F8F2">beslut_counts</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+        <span style="color: #F8F8F2">year_df[</span><span style="color: #E6DB74">&quot;Beslut&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">value_counts()</span> <span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;Beslut&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns</span> <span style="color: #66D9EF">else</span> <span style="color: #F8F8F2">{}</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">approved_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">sum(</span>
+        <span style="color: #F8F8F2">v</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">k,</span> <span style="color: #F8F8F2">v</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">beslut_counts</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items()</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;Beviljad&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">str(k)</span> <span style="color: #FF4689">and</span> <span style="color: #E6DB74">&quot;Ej&quot;</span> <span style="color: #FF4689">not</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">str(k)</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">total_rows</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">len(year_df)</span>
+
+    <span style="color: #F8F8F2">exploration_rows</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+        <span style="color: #F8F8F2">{</span>
+            <span style="color: #E6DB74">&quot;Year&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">year,</span>
+            <span style="color: #E6DB74">&quot;Sheet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">],</span>
+            <span style="color: #E6DB74">&quot;Header row&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">],</span>
+            <span style="color: #E6DB74">&quot;Rows&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">total_rows,</span>
+            <span style="color: #E6DB74">&quot;Columns&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">len(year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns),</span>
+            <span style="color: #E6DB74">&quot;Approved&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">approved_count,</span>
+            <span style="color: #E6DB74">&quot;Approval %&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">approved_count </span><span style="color: #FF4689">/</span><span style="color: #F8F8F2"> total_rows</span><span style="color: #E6DB74">:.0%}&quot;</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">total_rows</span> <span style="color: #66D9EF">else</span> <span style="color: #E6DB74">&quot;-&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">}</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">file_summary</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(exploration_rows)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_index(</span><span style="color: #E6DB74">&quot;Year&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span>
+    <span style="color: #E6DB74">f&quot;Loaded {</span><span style="color: #F8F8F2">len(raw_dataframes)</span><span style="color: #E6DB74">} / {</span><span style="color: #F8F8F2">len(YEAR_CONFIG)</span><span style="color: #E6DB74">} files, {</span><span style="color: #F8F8F2">file_summary[</span><span style="color: #E6DB74">&#39;Rows&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span><span style="color: #E6DB74">:,} total rows</span><span style="color: #AE81FF">\n</span><span style="color: #E6DB74">&quot;</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">display(</span>
+    <span style="color: #F8F8F2">file_summary</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">background_gradient(subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Rows&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Approved&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">cmap</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;Blues&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Loaded 8 / 8 files, 9,983 total rows
+
+</pre><div class="output-scroll"><style type="text/css">
+#T_06c93_row0_col2, #T_06c93_row6_col4 {
+  background-color: #f7fbff;
+  color: #000000;
+}
+#T_06c93_row0_col4, #T_06c93_row2_col2 {
+  background-color: #08306b;
+  color: #f1f1f1;
+}
+#T_06c93_row1_col2 {
+  background-color: #a6cee4;
+  color: #000000;
+}
+#T_06c93_row1_col4 {
+  background-color: #08488e;
+  color: #f1f1f1;
+}
+#T_06c93_row2_col4 {
+  background-color: #08458a;
+  color: #f1f1f1;
+}
+#T_06c93_row3_col2 {
+  background-color: #a5cde3;
+  color: #000000;
+}
+#T_06c93_row3_col4 {
+  background-color: #5da5d1;
+  color: #f1f1f1;
+}
+#T_06c93_row4_col2 {
+  background-color: #bfd8ed;
+  color: #000000;
+}
+#T_06c93_row4_col4 {
+  background-color: #6aaed6;
+  color: #f1f1f1;
+}
+#T_06c93_row5_col2 {
+  background-color: #92c4de;
+  color: #000000;
+}
+#T_06c93_row5_col4 {
+  background-color: #08509b;
+  color: #f1f1f1;
+}
+#T_06c93_row6_col2 {
+  background-color: #82bbdb;
+  color: #000000;
+}
+#T_06c93_row7_col2 {
+  background-color: #cee0f2;
+  color: #000000;
+}
+#T_06c93_row7_col4 {
+  background-color: #1c6ab0;
+  color: #f1f1f1;
+}
+</style>
+<table id="T_06c93">
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_06c93_level0_col0" class="col_heading level0 col0" >Sheet</th>
+      <th id="T_06c93_level0_col1" class="col_heading level0 col1" >Header row</th>
+      <th id="T_06c93_level0_col2" class="col_heading level0 col2" >Rows</th>
+      <th id="T_06c93_level0_col3" class="col_heading level0 col3" >Columns</th>
+      <th id="T_06c93_level0_col4" class="col_heading level0 col4" >Approved</th>
+      <th id="T_06c93_level0_col5" class="col_heading level0 col5" >Approval %</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >Year</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+      <th class="blank col2" >&nbsp;</th>
+      <th class="blank col3" >&nbsp;</th>
+      <th class="blank col4" >&nbsp;</th>
+      <th class="blank col5" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_06c93_level0_row0" class="row_heading level0 row0" >2018</th>
+      <td id="T_06c93_row0_col0" class="data row0 col0" >Lista</td>
+      <td id="T_06c93_row0_col1" class="data row0 col1" >0</td>
+      <td id="T_06c93_row0_col2" class="data row0 col2" >1105</td>
+      <td id="T_06c93_row0_col3" class="data row0 col3" >11</td>
+      <td id="T_06c93_row0_col4" class="data row0 col4" >496</td>
+      <td id="T_06c93_row0_col5" class="data row0 col5" >45%</td>
+    </tr>
+    <tr>
+      <th id="T_06c93_level0_row1" class="row_heading level0 row1" >2019</th>
+      <td id="T_06c93_row1_col0" class="data row1 col0" >Lista</td>
+      <td id="T_06c93_row1_col1" class="data row1 col1" >0</td>
+      <td id="T_06c93_row1_col2" class="data row1 col2" >1237</td>
+      <td id="T_06c93_row1_col3" class="data row1 col3" >13</td>
+      <td id="T_06c93_row1_col4" class="data row1 col4" >482</td>
+      <td id="T_06c93_row1_col5" class="data row1 col5" >39%</td>
+    </tr>
+    <tr>
+      <th id="T_06c93_level0_row2" class="row_heading level0 row2" >2020</th>
+      <td id="T_06c93_row2_col0" class="data row2 col0" >Tabell 3</td>
+      <td id="T_06c93_row2_col1" class="data row2 col1" >0</td>
+      <td id="T_06c93_row2_col2" class="data row2 col2" >1482</td>
+      <td id="T_06c93_row2_col3" class="data row2 col3" >16</td>
+      <td id="T_06c93_row2_col4" class="data row2 col4" >484</td>
+      <td id="T_06c93_row2_col5" class="data row2 col5" >33%</td>
+    </tr>
+    <tr>
+      <th id="T_06c93_level0_row3" class="row_heading level0 row3" >2021</th>
+      <td id="T_06c93_row3_col0" class="data row3 col0" >Tabell 3</td>
+      <td id="T_06c93_row3_col1" class="data row3 col1" >0</td>
+      <td id="T_06c93_row3_col2" class="data row3 col2" >1238</td>
+      <td id="T_06c93_row3_col3" class="data row3 col3" >17</td>
+      <td id="T_06c93_row3_col4" class="data row3 col4" >426</td>
+      <td id="T_06c93_row3_col5" class="data row3 col5" >34%</td>
+    </tr>
+    <tr>
+      <th id="T_06c93_level0_row4" class="row_heading level0 row4" >2022</th>
+      <td id="T_06c93_row4_col0" class="data row4 col0" >Tabell 3</td>
+      <td id="T_06c93_row4_col1" class="data row4 col1" >0</td>
+      <td id="T_06c93_row4_col2" class="data row4 col2" >1207</td>
+      <td id="T_06c93_row4_col3" class="data row4 col3" >16</td>
+      <td id="T_06c93_row4_col4" class="data row4 col4" >420</td>
+      <td id="T_06c93_row4_col5" class="data row4 col5" >35%</td>
+    </tr>
+    <tr>
+      <th id="T_06c93_level0_row5" class="row_heading level0 row5" >2023</th>
+      <td id="T_06c93_row5_col0" class="data row5 col0" >Tabell 3</td>
+      <td id="T_06c93_row5_col1" class="data row5 col1" >5</td>
+      <td id="T_06c93_row5_col2" class="data row5 col2" >1258</td>
+      <td id="T_06c93_row5_col3" class="data row5 col3" >28</td>
+      <td id="T_06c93_row5_col4" class="data row5 col4" >477</td>
+      <td id="T_06c93_row5_col5" class="data row5 col5" >38%</td>
+    </tr>
+    <tr>
+      <th id="T_06c93_level0_row6" class="row_heading level0 row6" >2024</th>
+      <td id="T_06c93_row6_col0" class="data row6 col0" >Tabell 3</td>
+      <td id="T_06c93_row6_col1" class="data row6 col1" >5</td>
+      <td id="T_06c93_row6_col2" class="data row6 col2" >1272</td>
+      <td id="T_06c93_row6_col3" class="data row6 col3" >28</td>
+      <td id="T_06c93_row6_col4" class="data row6 col4" >344</td>
+      <td id="T_06c93_row6_col5" class="data row6 col5" >27%</td>
+    </tr>
+    <tr>
+      <th id="T_06c93_level0_row7" class="row_heading level0 row7" >2025</th>
+      <td id="T_06c93_row7_col0" class="data row7 col0" >Tabell 3</td>
+      <td id="T_06c93_row7_col1" class="data row7 col1" >6</td>
+      <td id="T_06c93_row7_col2" class="data row7 col2" >1184</td>
+      <td id="T_06c93_row7_col3" class="data row7 col3" >28</td>
+      <td id="T_06c93_row7_col4" class="data row7 col4" >462</td>
+      <td id="T_06c93_row7_col5" class="data row7 col5" >39%</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell"><div class="code-header"><span>Code cell 4</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># Map each logical field to a lambda that checks whether it exists in a year&#39;s</span>
+<span style="color: #959077"># column list. Different heading variants across years are handled here - this</span>
+<span style="color: #959077"># matrix is the evidence base for every mapping decision in COLUMN_MAP.</span>
+<span style="color: #F8F8F2">PRESENCE_CHECKS</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;Utbildningsnamn&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Utbildningsnamn&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;Utbildningsomr.&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #F8F8F2">any(</span>
+        <span style="color: #E6DB74">&quot;Utbildningsomr&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">col</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names</span>
+    <span style="color: #F8F8F2">),</span>
+    <span style="color: #E6DB74">&quot;Beslut&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Beslut&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;Diarienummer&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Diarienummer&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;Län&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Län&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names</span> <span style="color: #FF4689">or</span> <span style="color: #E6DB74">&quot;Lan&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;Kommun&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Kommun&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;Studieform&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Studieform&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;Studietakt %&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Studietakt %&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;YH-poäng&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #F8F8F2">any(</span><span style="color: #E6DB74">&quot;YH-po&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">col</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names),</span>
+    <span style="color: #E6DB74">&quot;Typ av examen&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #F8F8F2">any(</span>
+        <span style="color: #F8F8F2">heading</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">heading</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Typ av examen&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Examenstyp&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">),</span>
+    <span style="color: #E6DB74">&quot;Anordnare&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #F8F8F2">any(</span><span style="color: #E6DB74">&quot;nordnare&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">col</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names),</span>
+    <span style="color: #E6DB74">&quot;Huvudmannatyp&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #E6DB74">&quot;Huvudmannatyp&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names,</span>
+    <span style="color: #E6DB74">&quot;Flera kommuner&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #F8F8F2">any(</span>
+        <span style="color: #F8F8F2">heading</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">heading</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Flera kommuner&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Flera studiekommuner&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Flera studieorter&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">),</span>
+    <span style="color: #E6DB74">&quot;SUN5 inriktning&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #F8F8F2">any(</span><span style="color: #E6DB74">&quot;SUN5&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">col</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names),</span>
+    <span style="color: #E6DB74">&quot;SeQF nivå&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">column_names:</span> <span style="color: #F8F8F2">any(</span><span style="color: #E6DB74">&quot;SeQF&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">col</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">column_names),</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #F8F8F2">presence_matrix</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(</span>
+    <span style="color: #F8F8F2">{</span>
+        <span style="color: #F8F8F2">year:</span> <span style="color: #F8F8F2">{</span>
+            <span style="color: #F8F8F2">field:</span> <span style="color: #F8F8F2">check(raw_column_names[year])</span>
+            <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">field,</span> <span style="color: #F8F8F2">check</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">PRESENCE_CHECKS</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items()</span>
+        <span style="color: #F8F8F2">}</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">year</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">YEAR_CONFIG</span>
+    <span style="color: #F8F8F2">}</span>
+<span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">T</span>
+<span style="color: #F8F8F2">presence_matrix</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">index</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">name</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;Year&quot;</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">_style_presence</span><span style="color: #F8F8F2">(is_present:</span> <span style="color: #F8F8F2">bool)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Green = column present this year; red = absent.&quot;&quot;&quot;</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">is_present:</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(46, 204, 113, 0.30); font-weight: 600; text-align: center&quot;</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(231, 76, 60, 0.25); text-align: center&quot;</span>
+
+
+<span style="color: #F8F8F2">display(</span>
+    <span style="color: #F8F8F2">presence_matrix</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(_style_presence)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">format(</span>
+        <span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">is_present:</span> <span style="color: #E6DB74">&quot;Yes&quot;</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">is_present</span> <span style="color: #66D9EF">else</span> <span style="color: #E6DB74">&quot;No&quot;</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><style type="text/css">
+#T_5f0de_row0_col0, #T_5f0de_row0_col1, #T_5f0de_row0_col2, #T_5f0de_row0_col3, #T_5f0de_row0_col4, #T_5f0de_row0_col5, #T_5f0de_row0_col6, #T_5f0de_row0_col7, #T_5f0de_row0_col8, #T_5f0de_row0_col10, #T_5f0de_row0_col11, #T_5f0de_row1_col0, #T_5f0de_row1_col1, #T_5f0de_row1_col2, #T_5f0de_row1_col3, #T_5f0de_row1_col4, #T_5f0de_row1_col5, #T_5f0de_row1_col6, #T_5f0de_row1_col7, #T_5f0de_row1_col8, #T_5f0de_row1_col10, #T_5f0de_row1_col11, #T_5f0de_row1_col12, #T_5f0de_row2_col0, #T_5f0de_row2_col1, #T_5f0de_row2_col2, #T_5f0de_row2_col3, #T_5f0de_row2_col4, #T_5f0de_row2_col5, #T_5f0de_row2_col6, #T_5f0de_row2_col7, #T_5f0de_row2_col8, #T_5f0de_row2_col10, #T_5f0de_row2_col11, #T_5f0de_row2_col12, #T_5f0de_row3_col0, #T_5f0de_row3_col1, #T_5f0de_row3_col2, #T_5f0de_row3_col3, #T_5f0de_row3_col4, #T_5f0de_row3_col5, #T_5f0de_row3_col6, #T_5f0de_row3_col7, #T_5f0de_row3_col8, #T_5f0de_row3_col9, #T_5f0de_row3_col10, #T_5f0de_row3_col11, #T_5f0de_row3_col12, #T_5f0de_row4_col0, #T_5f0de_row4_col1, #T_5f0de_row4_col2, #T_5f0de_row4_col3, #T_5f0de_row4_col4, #T_5f0de_row4_col5, #T_5f0de_row4_col6, #T_5f0de_row4_col7, #T_5f0de_row4_col8, #T_5f0de_row4_col9, #T_5f0de_row4_col10, #T_5f0de_row4_col11, #T_5f0de_row4_col12, #T_5f0de_row5_col0, #T_5f0de_row5_col1, #T_5f0de_row5_col2, #T_5f0de_row5_col3, #T_5f0de_row5_col4, #T_5f0de_row5_col5, #T_5f0de_row5_col6, #T_5f0de_row5_col7, #T_5f0de_row5_col8, #T_5f0de_row5_col9, #T_5f0de_row5_col10, #T_5f0de_row5_col11, #T_5f0de_row5_col12, #T_5f0de_row5_col13, #T_5f0de_row5_col14, #T_5f0de_row6_col0, #T_5f0de_row6_col1, #T_5f0de_row6_col2, #T_5f0de_row6_col3, #T_5f0de_row6_col4, #T_5f0de_row6_col5, #T_5f0de_row6_col6, #T_5f0de_row6_col7, #T_5f0de_row6_col8, #T_5f0de_row6_col9, #T_5f0de_row6_col10, #T_5f0de_row6_col11, #T_5f0de_row6_col12, #T_5f0de_row6_col13, #T_5f0de_row6_col14, #T_5f0de_row7_col0, #T_5f0de_row7_col1, #T_5f0de_row7_col2, #T_5f0de_row7_col3, #T_5f0de_row7_col4, #T_5f0de_row7_col5, #T_5f0de_row7_col6, #T_5f0de_row7_col7, #T_5f0de_row7_col8, #T_5f0de_row7_col9, #T_5f0de_row7_col10, #T_5f0de_row7_col11, #T_5f0de_row7_col12, #T_5f0de_row7_col13, #T_5f0de_row7_col14 {
+  background-color: rgba(46, 204, 113, 0.30);
+  font-weight: 600;
+  text-align: center;
+}
+#T_5f0de_row0_col9, #T_5f0de_row0_col12, #T_5f0de_row0_col13, #T_5f0de_row0_col14, #T_5f0de_row1_col9, #T_5f0de_row1_col13, #T_5f0de_row1_col14, #T_5f0de_row2_col9, #T_5f0de_row2_col13, #T_5f0de_row2_col14, #T_5f0de_row3_col13, #T_5f0de_row3_col14, #T_5f0de_row4_col13, #T_5f0de_row4_col14 {
+  background-color: rgba(231, 76, 60, 0.25);
+  text-align: center;
+}
+</style>
+<table id="T_5f0de">
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_5f0de_level0_col0" class="col_heading level0 col0" >Utbildningsnamn</th>
+      <th id="T_5f0de_level0_col1" class="col_heading level0 col1" >Utbildningsomr.</th>
+      <th id="T_5f0de_level0_col2" class="col_heading level0 col2" >Beslut</th>
+      <th id="T_5f0de_level0_col3" class="col_heading level0 col3" >Diarienummer</th>
+      <th id="T_5f0de_level0_col4" class="col_heading level0 col4" >Län</th>
+      <th id="T_5f0de_level0_col5" class="col_heading level0 col5" >Kommun</th>
+      <th id="T_5f0de_level0_col6" class="col_heading level0 col6" >Studieform</th>
+      <th id="T_5f0de_level0_col7" class="col_heading level0 col7" >Studietakt %</th>
+      <th id="T_5f0de_level0_col8" class="col_heading level0 col8" >YH-poäng</th>
+      <th id="T_5f0de_level0_col9" class="col_heading level0 col9" >Typ av examen</th>
+      <th id="T_5f0de_level0_col10" class="col_heading level0 col10" >Anordnare</th>
+      <th id="T_5f0de_level0_col11" class="col_heading level0 col11" >Huvudmannatyp</th>
+      <th id="T_5f0de_level0_col12" class="col_heading level0 col12" >Flera kommuner</th>
+      <th id="T_5f0de_level0_col13" class="col_heading level0 col13" >SUN5 inriktning</th>
+      <th id="T_5f0de_level0_col14" class="col_heading level0 col14" >SeQF nivå</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >Year</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+      <th class="blank col2" >&nbsp;</th>
+      <th class="blank col3" >&nbsp;</th>
+      <th class="blank col4" >&nbsp;</th>
+      <th class="blank col5" >&nbsp;</th>
+      <th class="blank col6" >&nbsp;</th>
+      <th class="blank col7" >&nbsp;</th>
+      <th class="blank col8" >&nbsp;</th>
+      <th class="blank col9" >&nbsp;</th>
+      <th class="blank col10" >&nbsp;</th>
+      <th class="blank col11" >&nbsp;</th>
+      <th class="blank col12" >&nbsp;</th>
+      <th class="blank col13" >&nbsp;</th>
+      <th class="blank col14" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_5f0de_level0_row0" class="row_heading level0 row0" >2018</th>
+      <td id="T_5f0de_row0_col0" class="data row0 col0" >Yes</td>
+      <td id="T_5f0de_row0_col1" class="data row0 col1" >Yes</td>
+      <td id="T_5f0de_row0_col2" class="data row0 col2" >Yes</td>
+      <td id="T_5f0de_row0_col3" class="data row0 col3" >Yes</td>
+      <td id="T_5f0de_row0_col4" class="data row0 col4" >Yes</td>
+      <td id="T_5f0de_row0_col5" class="data row0 col5" >Yes</td>
+      <td id="T_5f0de_row0_col6" class="data row0 col6" >Yes</td>
+      <td id="T_5f0de_row0_col7" class="data row0 col7" >Yes</td>
+      <td id="T_5f0de_row0_col8" class="data row0 col8" >Yes</td>
+      <td id="T_5f0de_row0_col9" class="data row0 col9" >No</td>
+      <td id="T_5f0de_row0_col10" class="data row0 col10" >Yes</td>
+      <td id="T_5f0de_row0_col11" class="data row0 col11" >Yes</td>
+      <td id="T_5f0de_row0_col12" class="data row0 col12" >No</td>
+      <td id="T_5f0de_row0_col13" class="data row0 col13" >No</td>
+      <td id="T_5f0de_row0_col14" class="data row0 col14" >No</td>
+    </tr>
+    <tr>
+      <th id="T_5f0de_level0_row1" class="row_heading level0 row1" >2019</th>
+      <td id="T_5f0de_row1_col0" class="data row1 col0" >Yes</td>
+      <td id="T_5f0de_row1_col1" class="data row1 col1" >Yes</td>
+      <td id="T_5f0de_row1_col2" class="data row1 col2" >Yes</td>
+      <td id="T_5f0de_row1_col3" class="data row1 col3" >Yes</td>
+      <td id="T_5f0de_row1_col4" class="data row1 col4" >Yes</td>
+      <td id="T_5f0de_row1_col5" class="data row1 col5" >Yes</td>
+      <td id="T_5f0de_row1_col6" class="data row1 col6" >Yes</td>
+      <td id="T_5f0de_row1_col7" class="data row1 col7" >Yes</td>
+      <td id="T_5f0de_row1_col8" class="data row1 col8" >Yes</td>
+      <td id="T_5f0de_row1_col9" class="data row1 col9" >No</td>
+      <td id="T_5f0de_row1_col10" class="data row1 col10" >Yes</td>
+      <td id="T_5f0de_row1_col11" class="data row1 col11" >Yes</td>
+      <td id="T_5f0de_row1_col12" class="data row1 col12" >Yes</td>
+      <td id="T_5f0de_row1_col13" class="data row1 col13" >No</td>
+      <td id="T_5f0de_row1_col14" class="data row1 col14" >No</td>
+    </tr>
+    <tr>
+      <th id="T_5f0de_level0_row2" class="row_heading level0 row2" >2020</th>
+      <td id="T_5f0de_row2_col0" class="data row2 col0" >Yes</td>
+      <td id="T_5f0de_row2_col1" class="data row2 col1" >Yes</td>
+      <td id="T_5f0de_row2_col2" class="data row2 col2" >Yes</td>
+      <td id="T_5f0de_row2_col3" class="data row2 col3" >Yes</td>
+      <td id="T_5f0de_row2_col4" class="data row2 col4" >Yes</td>
+      <td id="T_5f0de_row2_col5" class="data row2 col5" >Yes</td>
+      <td id="T_5f0de_row2_col6" class="data row2 col6" >Yes</td>
+      <td id="T_5f0de_row2_col7" class="data row2 col7" >Yes</td>
+      <td id="T_5f0de_row2_col8" class="data row2 col8" >Yes</td>
+      <td id="T_5f0de_row2_col9" class="data row2 col9" >No</td>
+      <td id="T_5f0de_row2_col10" class="data row2 col10" >Yes</td>
+      <td id="T_5f0de_row2_col11" class="data row2 col11" >Yes</td>
+      <td id="T_5f0de_row2_col12" class="data row2 col12" >Yes</td>
+      <td id="T_5f0de_row2_col13" class="data row2 col13" >No</td>
+      <td id="T_5f0de_row2_col14" class="data row2 col14" >No</td>
+    </tr>
+    <tr>
+      <th id="T_5f0de_level0_row3" class="row_heading level0 row3" >2021</th>
+      <td id="T_5f0de_row3_col0" class="data row3 col0" >Yes</td>
+      <td id="T_5f0de_row3_col1" class="data row3 col1" >Yes</td>
+      <td id="T_5f0de_row3_col2" class="data row3 col2" >Yes</td>
+      <td id="T_5f0de_row3_col3" class="data row3 col3" >Yes</td>
+      <td id="T_5f0de_row3_col4" class="data row3 col4" >Yes</td>
+      <td id="T_5f0de_row3_col5" class="data row3 col5" >Yes</td>
+      <td id="T_5f0de_row3_col6" class="data row3 col6" >Yes</td>
+      <td id="T_5f0de_row3_col7" class="data row3 col7" >Yes</td>
+      <td id="T_5f0de_row3_col8" class="data row3 col8" >Yes</td>
+      <td id="T_5f0de_row3_col9" class="data row3 col9" >Yes</td>
+      <td id="T_5f0de_row3_col10" class="data row3 col10" >Yes</td>
+      <td id="T_5f0de_row3_col11" class="data row3 col11" >Yes</td>
+      <td id="T_5f0de_row3_col12" class="data row3 col12" >Yes</td>
+      <td id="T_5f0de_row3_col13" class="data row3 col13" >No</td>
+      <td id="T_5f0de_row3_col14" class="data row3 col14" >No</td>
+    </tr>
+    <tr>
+      <th id="T_5f0de_level0_row4" class="row_heading level0 row4" >2022</th>
+      <td id="T_5f0de_row4_col0" class="data row4 col0" >Yes</td>
+      <td id="T_5f0de_row4_col1" class="data row4 col1" >Yes</td>
+      <td id="T_5f0de_row4_col2" class="data row4 col2" >Yes</td>
+      <td id="T_5f0de_row4_col3" class="data row4 col3" >Yes</td>
+      <td id="T_5f0de_row4_col4" class="data row4 col4" >Yes</td>
+      <td id="T_5f0de_row4_col5" class="data row4 col5" >Yes</td>
+      <td id="T_5f0de_row4_col6" class="data row4 col6" >Yes</td>
+      <td id="T_5f0de_row4_col7" class="data row4 col7" >Yes</td>
+      <td id="T_5f0de_row4_col8" class="data row4 col8" >Yes</td>
+      <td id="T_5f0de_row4_col9" class="data row4 col9" >Yes</td>
+      <td id="T_5f0de_row4_col10" class="data row4 col10" >Yes</td>
+      <td id="T_5f0de_row4_col11" class="data row4 col11" >Yes</td>
+      <td id="T_5f0de_row4_col12" class="data row4 col12" >Yes</td>
+      <td id="T_5f0de_row4_col13" class="data row4 col13" >No</td>
+      <td id="T_5f0de_row4_col14" class="data row4 col14" >No</td>
+    </tr>
+    <tr>
+      <th id="T_5f0de_level0_row5" class="row_heading level0 row5" >2023</th>
+      <td id="T_5f0de_row5_col0" class="data row5 col0" >Yes</td>
+      <td id="T_5f0de_row5_col1" class="data row5 col1" >Yes</td>
+      <td id="T_5f0de_row5_col2" class="data row5 col2" >Yes</td>
+      <td id="T_5f0de_row5_col3" class="data row5 col3" >Yes</td>
+      <td id="T_5f0de_row5_col4" class="data row5 col4" >Yes</td>
+      <td id="T_5f0de_row5_col5" class="data row5 col5" >Yes</td>
+      <td id="T_5f0de_row5_col6" class="data row5 col6" >Yes</td>
+      <td id="T_5f0de_row5_col7" class="data row5 col7" >Yes</td>
+      <td id="T_5f0de_row5_col8" class="data row5 col8" >Yes</td>
+      <td id="T_5f0de_row5_col9" class="data row5 col9" >Yes</td>
+      <td id="T_5f0de_row5_col10" class="data row5 col10" >Yes</td>
+      <td id="T_5f0de_row5_col11" class="data row5 col11" >Yes</td>
+      <td id="T_5f0de_row5_col12" class="data row5 col12" >Yes</td>
+      <td id="T_5f0de_row5_col13" class="data row5 col13" >Yes</td>
+      <td id="T_5f0de_row5_col14" class="data row5 col14" >Yes</td>
+    </tr>
+    <tr>
+      <th id="T_5f0de_level0_row6" class="row_heading level0 row6" >2024</th>
+      <td id="T_5f0de_row6_col0" class="data row6 col0" >Yes</td>
+      <td id="T_5f0de_row6_col1" class="data row6 col1" >Yes</td>
+      <td id="T_5f0de_row6_col2" class="data row6 col2" >Yes</td>
+      <td id="T_5f0de_row6_col3" class="data row6 col3" >Yes</td>
+      <td id="T_5f0de_row6_col4" class="data row6 col4" >Yes</td>
+      <td id="T_5f0de_row6_col5" class="data row6 col5" >Yes</td>
+      <td id="T_5f0de_row6_col6" class="data row6 col6" >Yes</td>
+      <td id="T_5f0de_row6_col7" class="data row6 col7" >Yes</td>
+      <td id="T_5f0de_row6_col8" class="data row6 col8" >Yes</td>
+      <td id="T_5f0de_row6_col9" class="data row6 col9" >Yes</td>
+      <td id="T_5f0de_row6_col10" class="data row6 col10" >Yes</td>
+      <td id="T_5f0de_row6_col11" class="data row6 col11" >Yes</td>
+      <td id="T_5f0de_row6_col12" class="data row6 col12" >Yes</td>
+      <td id="T_5f0de_row6_col13" class="data row6 col13" >Yes</td>
+      <td id="T_5f0de_row6_col14" class="data row6 col14" >Yes</td>
+    </tr>
+    <tr>
+      <th id="T_5f0de_level0_row7" class="row_heading level0 row7" >2025</th>
+      <td id="T_5f0de_row7_col0" class="data row7 col0" >Yes</td>
+      <td id="T_5f0de_row7_col1" class="data row7 col1" >Yes</td>
+      <td id="T_5f0de_row7_col2" class="data row7 col2" >Yes</td>
+      <td id="T_5f0de_row7_col3" class="data row7 col3" >Yes</td>
+      <td id="T_5f0de_row7_col4" class="data row7 col4" >Yes</td>
+      <td id="T_5f0de_row7_col5" class="data row7 col5" >Yes</td>
+      <td id="T_5f0de_row7_col6" class="data row7 col6" >Yes</td>
+      <td id="T_5f0de_row7_col7" class="data row7 col7" >Yes</td>
+      <td id="T_5f0de_row7_col8" class="data row7 col8" >Yes</td>
+      <td id="T_5f0de_row7_col9" class="data row7 col9" >Yes</td>
+      <td id="T_5f0de_row7_col10" class="data row7 col10" >Yes</td>
+      <td id="T_5f0de_row7_col11" class="data row7 col11" >Yes</td>
+      <td id="T_5f0de_row7_col12" class="data row7 col12" >Yes</td>
+      <td id="T_5f0de_row7_col13" class="data row7 col13" >Yes</td>
+      <td id="T_5f0de_row7_col14" class="data row7 col14" >Yes</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell markdown-cell"><hr>
+<h2>2. Harmonization Design</h2>
+<p>The core challenge is that eight years of files were never designed to be combined. Column names changed, value vocabularies drifted, and new fields were introduced. Below is the complete mapping from source names to our canonical schema.</p>
+<h3>Column Name Mapping</h3>
+<table><thead><tr><th>Canonical column</th><th>Source variants across years</th></tr></thead><tbody><tr><td><code>utbildningsomrade</code></td><td><code>Utbildningsområde</code> (all years)</td></tr><tr><td><code>utbildningsnamn</code></td><td><code>Utbildningsnamn</code> (all years)</td></tr><tr><td><code>beslut</code></td><td><code>Beslut</code> (all years)</td></tr><tr><td><code>diarienummer</code></td><td><code>Diarienummer</code> (all years)</td></tr><tr><td><code>lan</code></td><td><code>Län</code> (all years)</td></tr><tr><td><code>kommun</code></td><td><code>Kommun</code> (all years)</td></tr><tr><td><code>yh_poang</code></td><td><code>YH-poäng</code> (all years)</td></tr><tr><td><code>studieform</code></td><td><code>Studieform</code> (2018–2025)</td></tr><tr><td><code>studietakt_procent</code></td><td><code>Studietakt %</code> (2018–2025)</td></tr><tr><td><code>typ_av_examen</code></td><td><code>Typ av examen</code> (2021–2024) · <code>Examenstyp</code> (2025) · <em>null</em> (2018–2020)</td></tr><tr><td><code>utbildningsanordnare</code></td><td><code>Anordnare administrativ enhet</code> (2018) · <code>Utbildningsanordnare, administrativ enhet</code> (2019) · <code>Utbildningsanordnare administrativ enhet</code> (2020–2025)</td></tr><tr><td><code>huvudmannatyp</code></td><td><code>Huvudmannatyp</code> (all years)</td></tr><tr><td><code>flera_kommuner</code></td><td><code>Flera kommuner</code> (2022–2025) · <code>Flera studiekommuner</code> (2020–2021) · <code>Flera studieorter</code> (2019) · <em>null</em> (2018)</td></tr><tr><td><code>antal_kommuner</code></td><td><code>Antal kommuner</code> (2020–2025) · <code>Antal studieorter</code> (2019) · <em>null</em> (2018)</td></tr><tr><td><code>sokta_omgangar</code></td><td><code>Sökta utbildningsomgångar</code> (2020–2025) · <em>null</em> (2018–2019)</td></tr><tr><td><code>beviljade_omgangar</code></td><td><code>Beviljade utbildningsomgångar</code> (2020–2025) · <em>null</em> (2018–2019)</td></tr><tr><td><code>sun5_inriktning</code></td><td><code>SUN5 inriktning</code> (2023–2025) · <em>null</em> (2018–2022)</td></tr><tr><td><code>sun5_inriktning_namn</code></td><td><code>SUN5 inriktning namn</code> (2023–2025) · <em>null</em> (2018–2022)</td></tr><tr><td><code>seqf_niva</code></td><td><code>SeQF nivå</code> (2023–2025) · <em>null</em> (2018–2022)</td></tr><tr><td><code>smalt_yrkesomrade</code></td><td><code>Smalt yrkesområde</code> (2023–2025) · <em>null</em> (2018–2022)</td></tr></tbody></table>
+<h3>Value Normalization</h3>
+<table><thead><tr><th>Field</th><th>Raw values</th><th>Normalized to</th></tr></thead><tbody><tr><td><code>beslut</code> -&gt; <code>beslut_normalized</code></td><td><code>Beviljad</code></td><td><code>approved</code></td></tr><tr><td></td><td><code>Avslag</code> (2022–2025)</td><td><code>rejected</code></td></tr><tr><td></td><td><code>Ej beviljad</code> (2018–2021)</td><td><code>rejected</code></td></tr><tr><td></td><td><code>Återkallad</code> (2025, 1 row)</td><td><code>withdrawn</code></td></tr><tr><td><code>huvudmannatyp</code></td><td><code>Landsting</code> (2018–2021)</td><td><code>Region</code></td></tr></tbody></table>
+<div style='border-left: 4px solid #d4a017; padding: 12px 16px; border-radius: 4px; margin: 16px 0; background: rgba(212, 160, 23, 0.1);'>
+<strong>Decision note:</strong> Columns that only exist in later years (SUN5, SeQF) are retained and will be <code>null</code> for earlier years. A null clearly signals absence of data; dropping these columns would silently hide the fact that they exist at all. They are important but not vital.
+</div>
+<div style='border-left: 4px solid #8e6bbf; padding: 12px 16px; border-radius: 4px; margin: 16px 0; background: rgba(142, 107, 191, 0.1);'>
+<strong>Återkallad:</strong> One application in 2025 has the decision value <code>Återkallad</code> (Swedish: "withdrawn"). This means the provider withdrew the application before a decision was issued. It is distinct from a rejection and is mapped to <code>withdrawn</code> rather than <code>rejected</code> to preserve the semantic difference.
+</div></section><section class="cell"><div class="code-header"><span>Code cell 5</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># ── Harmonization constants ───────────────────────────────────────────────────</span>
+<span style="color: #959077"># MYH changed column names across years without a published mapping.</span>
+<span style="color: #959077"># COLUMN_MAP captures every name variant found in the raw files and maps them all</span>
+<span style="color: #959077"># to the same canonical snake_case key, so every year ends up with identical columns.</span>
+<span style="color: #F8F8F2">COLUMN_MAP</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;Utbildningsområde&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;utbildningsomrade&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Utbildningsnamn&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;utbildningsnamn&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Beslut&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;beslut&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Diarienummer&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;diarienummer&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Län&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;lan&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Kommun&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;kommun&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;YH-poäng&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;yh_poang&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Studieform&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;studieform&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Studietakt %&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;studietakt_procent&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #959077"># &quot;Typ av examen&quot; in 2020+, &quot;Examenstyp&quot; in earlier files</span>
+    <span style="color: #E6DB74">&quot;Typ av examen&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;typ_av_examen&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Examenstyp&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;typ_av_examen&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #959077"># Provider column appeared under three different headings across the years</span>
+    <span style="color: #E6DB74">&quot;Anordnare administrativ enhet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;utbildningsanordnare&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Utbildningsanordnare, administrativ enhet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;utbildningsanordnare&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Utbildningsanordnare administrativ enhet&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;utbildningsanordnare&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Huvudmannatyp&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #959077"># Multi-municipality flag: three heading variants across 2019-2025</span>
+    <span style="color: #E6DB74">&quot;Flera kommuner&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;flera_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Flera studiekommuner&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;flera_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Flera studieorter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;flera_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #959077"># Municipality count: two heading variants</span>
+    <span style="color: #E6DB74">&quot;Antal kommuner&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;antal_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Antal studieorter&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;antal_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Sökta utbildningsomgångar&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;sokta_omgangar&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Beviljade utbildningsomgångar&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;beviljade_omgangar&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #959077"># SUN5 / SeQF introduced in 2023 , absent in earlier files</span>
+    <span style="color: #E6DB74">&quot;SUN5 inriktning&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;sun5_inriktning&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;SUN5 inriktning namn&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;sun5_inriktning_namn&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;SeQF nivå&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;seqf_niva&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Smalt yrkesområde&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;smalt_yrkesomrade&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #959077"># Maps raw Swedish decision values to the three canonical English labels.</span>
+<span style="color: #959077"># &quot;Ej beviljad &quot; (trailing space) is a data-quality quirk found in older files.</span>
+<span style="color: #959077"># &quot;Återkallad&quot; (withdrawn) was observed in 2025 , the provider cancelled the application.</span>
+<span style="color: #F8F8F2">BESLUT_MAP</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;Beviljad&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;approved&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Avslag&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;rejected&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Ej beviljad&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;rejected&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;Ej beviljad &quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;rejected&quot;</span><span style="color: #F8F8F2">,</span>  <span style="color: #959077"># trailing-space variant in older files</span>
+    <span style="color: #E6DB74">&quot;Återkallad&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;withdrawn&quot;</span><span style="color: #F8F8F2">,</span>  <span style="color: #959077"># provider withdrew application (observed in 2025)</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #959077"># &quot;Landsting&quot; was renamed to &quot;Region&quot; across Sweden in 2019.</span>
+<span style="color: #959077"># The source files mix both terms depending on the year of the application.</span>
+<span style="color: #F8F8F2">HUVUDMAN_MAP</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;Landsting&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Region&quot;</span><span style="color: #F8F8F2">}</span>
+
+<span style="color: #959077"># Explicit allowlist of columns to keep after harmonization.</span>
+<span style="color: #959077"># Columns present in some years but absent in others are still included here</span>
+<span style="color: #959077"># so they appear as NaN for the years where they did not exist, rather than</span>
+<span style="color: #959077"># being silently dropped.</span>
+<span style="color: #F8F8F2">KEEP_COLUMNS</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+    <span style="color: #E6DB74">&quot;source_year&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;source_file&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;source_sheet&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;diarienummer&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;utbildningsnamn&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;utbildningsomrade&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;beslut&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;lan&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;kommun&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;yh_poang&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;studieform&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;studietakt_procent&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;typ_av_examen&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;utbildningsanordnare&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;flera_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;antal_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;sokta_omgangar&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;beviljade_omgangar&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;sun5_inriktning&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;sun5_inriktning_namn&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;seqf_niva&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;smalt_yrkesomrade&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">]</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">len(COLUMN_MAP)</span><span style="color: #E6DB74">} column name mappings defined&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">len(BESLUT_MAP)</span><span style="color: #E6DB74">} beslut value mappings defined&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">len(KEEP_COLUMNS)</span><span style="color: #E6DB74">} canonical columns in final schema&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>26 column name mappings defined
+5 beslut value mappings defined
+23 canonical columns in final schema
+</pre></div></section><section class="cell markdown-cell"><hr>
+<h2>3. Load &amp; Harmonize</h2>
+<p>Each year is loaded using its entry in <code>YEAR_CONFIG</code> and passed through <code>load_and_harmonize</code> , a single function that handles all structural differences in one place:</p>
+<p>1. Reads the correct sheet with the correct header offset</p>
+<p>2. Drops empty columns and junk columns (notes embedded in the 2019 file)</p>
+<p>3. Renames every recognised column using <code>COLUMN_MAP</code></p>
+<p>4. Attaches three source traceability columns: <code>source_year</code>, <code>source_file</code>, <code>source_sheet</code></p>
+<p>5. Returns only the columns defined in <code>KEEP_COLUMNS</code></p>
+<p>All eight frames are then concatenated into one DataFrame. Columns absent in a given year become <code>NaN</code> automatically , <code>pd.concat</code> handles this without any special case code.</p></section><section class="cell"><div class="code-header"><span>Code cell 6</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">load_and_harmonize</span><span style="color: #F8F8F2">(year:</span> <span style="color: #F8F8F2">int,</span> <span style="color: #F8F8F2">config:</span> <span style="color: #F8F8F2">dict)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Load one year&#39;s Excel file and rename columns to the canonical schema.</span>
+
+<span style="color: #E6DB74">    Each year is loaded independently so structural differences (sheet name,</span>
+<span style="color: #E6DB74">    header row, column naming) are fully isolated to the YEAR_CONFIG dict.</span>
+<span style="color: #E6DB74">    Value cleaning and enrichment happen in later steps.</span>
+<span style="color: #E6DB74">    &quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">year_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read_excel(</span>
+        <span style="color: #F8F8F2">RAW_PATH</span> <span style="color: #FF4689">/</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">sheet_name</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">header</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;header&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">year_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna(axis</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">how</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;all&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">year_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">year_df[</span>
+        <span style="color: #F8F8F2">[</span>
+            <span style="color: #F8F8F2">c</span>
+            <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">c</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns</span>
+            <span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">str(c)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">startswith(</span><span style="color: #E6DB74">&quot;Unnamed&quot;</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">and</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">str(c)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">startswith(</span><span style="color: #E6DB74">&quot;Notera&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">year_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">rename(columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">COLUMN_MAP)</span>
+    <span style="color: #F8F8F2">year_df[</span><span style="color: #E6DB74">&quot;source_year&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">year</span>
+    <span style="color: #F8F8F2">year_df[</span><span style="color: #E6DB74">&quot;source_file&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">year_df[</span><span style="color: #E6DB74">&quot;source_sheet&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;sheet&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">columns_to_keep</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[col</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">KEEP_COLUMNS</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">year_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns]</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">year_df[columns_to_keep]</span>
+
+
+<span style="color: #F8F8F2">year_frames</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+<span style="color: #F8F8F2">load_report_rows</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">year,</span> <span style="color: #F8F8F2">config</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">YEAR_CONFIG</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items():</span>
+    <span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">frame</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">load_and_harmonize(year,</span> <span style="color: #F8F8F2">config)</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">FileNotFoundError</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;harmonize&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: file not found&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">config[</span><span style="color: #E6DB74">&quot;file&quot;</span><span style="color: #F8F8F2">])</span>
+        <span style="color: #66D9EF">continue</span>
+    <span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">exc:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;harmonize&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: harmonization failed&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(exc))</span>
+        <span style="color: #66D9EF">continue</span>
+
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">len(frame)</span> <span style="color: #FF4689">==</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;harmonize&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: 0 rows after harmonization&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">continue</span>
+
+    <span style="color: #959077"># Verify that core columns were successfully mapped by COLUMN_MAP</span>
+    <span style="color: #F8F8F2">expected_core</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;diarienummer&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;utbildningsnamn&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;beslut&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;source_year&quot;</span><span style="color: #F8F8F2">}</span>
+    <span style="color: #F8F8F2">missing_core</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">expected_core</span> <span style="color: #FF4689">-</span> <span style="color: #F8F8F2">set(frame</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">missing_core:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;harmonize&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: core columns not found after rename&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">str(missing_core),</span>
+        <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;harmonize&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: harmonized&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">len(frame)</span><span style="color: #E6DB74">} rows, {</span><span style="color: #F8F8F2">len(frame</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span><span style="color: #E6DB74">} columns&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+
+    <span style="color: #959077"># Log any KEEP_COLUMNS absent after renaming.</span>
+    <span style="color: #959077"># Year-gated columns (sun5, seqf, typ_av_examen, round counts) will appear here</span>
+    <span style="color: #959077"># for years where MYH had not yet introduced those fields - that is expected.</span>
+    <span style="color: #959077"># An unexpected column name here signals a silent COLUMN_MAP failure.</span>
+    <span style="color: #F8F8F2">missing_keep</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">set(KEEP_COLUMNS)</span> <span style="color: #FF4689">-</span> <span style="color: #F8F8F2">set(frame</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">missing_keep:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;harmonize&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">year</span><span style="color: #E6DB74">}: {</span><span style="color: #F8F8F2">len(missing_keep)</span><span style="color: #E6DB74">} KEEP_COLUMNS absent after rename&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;, &quot;</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">join(sorted(missing_keep)),</span>
+        <span style="color: #F8F8F2">)</span>
+
+    <span style="color: #F8F8F2">year_frames</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(frame)</span>
+    <span style="color: #F8F8F2">load_report_rows</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+        <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;Year&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">year,</span> <span style="color: #E6DB74">&quot;Rows loaded&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">len(frame),</span> <span style="color: #E6DB74">&quot;Columns&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">len(frame</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)}</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">year_frames:</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;harmonize&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;No frames loaded - pipeline cannot continue&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">raise</span> <span style="color: #A6E22E">RuntimeError</span><span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;Pipeline aborted: no data loaded. Check setup errors above.&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">applications</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">concat(year_frames,</span> <span style="color: #F8F8F2">ignore_index</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">load_summary</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(load_report_rows)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_index(</span><span style="color: #E6DB74">&quot;Year&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">load_summary</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">loc[</span><span style="color: #E6DB74">&quot;TOTAL&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">load_summary</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span>
+<span style="color: #F8F8F2">load_summary</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">loc[</span><span style="color: #E6DB74">&quot;TOTAL&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Columns&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">len(applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Combined: {</span><span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:,} rows x {</span><span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">} columns</span><span style="color: #AE81FF">\n</span><span style="color: #E6DB74">&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">display(load_summary</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">background_gradient(subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Rows loaded&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">cmap</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;Blues&quot;</span><span style="color: #F8F8F2">))</span>
+</pre></div>
+<div class="output"><pre>Combined: 9,983 rows x 23 columns
+
+</pre><div class="output-scroll"><style type="text/css">
+#T_0f123_row0_col0 {
+  background-color: #f7fbff;
+  color: #000000;
+}
+#T_0f123_row1_col0, #T_0f123_row3_col0 {
+  background-color: #f5f9fe;
+  color: #000000;
+}
+#T_0f123_row2_col0 {
+  background-color: #eff6fc;
+  color: #000000;
+}
+#T_0f123_row4_col0, #T_0f123_row7_col0 {
+  background-color: #f5fafe;
+  color: #000000;
+}
+#T_0f123_row5_col0, #T_0f123_row6_col0 {
+  background-color: #f4f9fe;
+  color: #000000;
+}
+#T_0f123_row8_col0 {
+  background-color: #08306b;
+  color: #f1f1f1;
+}
+</style>
+<table id="T_0f123">
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_0f123_level0_col0" class="col_heading level0 col0" >Rows loaded</th>
+      <th id="T_0f123_level0_col1" class="col_heading level0 col1" >Columns</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >Year</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_0f123_level0_row0" class="row_heading level0 row0" >2018</th>
+      <td id="T_0f123_row0_col0" class="data row0 col0" >1105</td>
+      <td id="T_0f123_row0_col1" class="data row0 col1" >14</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row1" class="row_heading level0 row1" >2019</th>
+      <td id="T_0f123_row1_col0" class="data row1 col0" >1237</td>
+      <td id="T_0f123_row1_col1" class="data row1 col1" >16</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row2" class="row_heading level0 row2" >2020</th>
+      <td id="T_0f123_row2_col0" class="data row2 col0" >1482</td>
+      <td id="T_0f123_row2_col1" class="data row2 col1" >18</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row3" class="row_heading level0 row3" >2021</th>
+      <td id="T_0f123_row3_col0" class="data row3 col0" >1238</td>
+      <td id="T_0f123_row3_col1" class="data row3 col1" >19</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row4" class="row_heading level0 row4" >2022</th>
+      <td id="T_0f123_row4_col0" class="data row4 col0" >1207</td>
+      <td id="T_0f123_row4_col1" class="data row4 col1" >19</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row5" class="row_heading level0 row5" >2023</th>
+      <td id="T_0f123_row5_col0" class="data row5 col0" >1258</td>
+      <td id="T_0f123_row5_col1" class="data row5 col1" >23</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row6" class="row_heading level0 row6" >2024</th>
+      <td id="T_0f123_row6_col0" class="data row6 col0" >1272</td>
+      <td id="T_0f123_row6_col1" class="data row6 col1" >23</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row7" class="row_heading level0 row7" >2025</th>
+      <td id="T_0f123_row7_col0" class="data row7 col0" >1184</td>
+      <td id="T_0f123_row7_col1" class="data row7 col1" >23</td>
+    </tr>
+    <tr>
+      <th id="T_0f123_level0_row8" class="row_heading level0 row8" >TOTAL</th>
+      <td id="T_0f123_row8_col0" class="data row8 col0" >9983</td>
+      <td id="T_0f123_row8_col1" class="data row8 col1" >23</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell markdown-cell"><hr>
+<h2>4. Data Cleaning</h2>
+<p>Harmonization maps columns to a common schema. Cleaning fixes the <em>values</em> inside those columns. We handle four categories:</p>
+<ul>
+<li><strong>Type conversion</strong> , numeric fields stored as strings or mixed types</li>
+<li><strong>Text normalization</strong> , leading/trailing whitespace</li>
+<li><strong>Value standardization</strong> , <code>Landsting</code> -&gt; <code>Region</code></li>
+<li><strong>Duplicate investigation</strong> , check for repeated <code>diarienummer</code> values</li>
+</ul></section><section class="cell"><div class="code-header"><span>Code cell 7</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># ── Type coercion ─────────────────────────────────────────────────────────────</span>
+<span style="color: #959077"># pd.to_numeric coerces unparseable values to NaN.</span>
+<span style="color: #959077"># Int64 (capital I) is pandas&#39; nullable integer - preserves NaN without float promotion.</span>
+<span style="color: #959077"># Compare null counts before/after to detect coercion failures beyond expected structural nulls.</span>
+<span style="color: #F8F8F2">numeric_columns</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+    <span style="color: #E6DB74">&quot;yh_poang&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;studietakt_procent&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;antal_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;sokta_omgangar&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;beviljade_omgangar&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">]</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">numeric_columns:</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">not</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;clean&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">col</span><span style="color: #E6DB74">}: column missing, skipping type coercion&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #66D9EF">continue</span>
+    <span style="color: #F8F8F2">before_nulls</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int(applications[col]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+    <span style="color: #F8F8F2">applications[col]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">to_numeric(applications[col],</span> <span style="color: #F8F8F2">errors</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;coerce&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(</span>
+        <span style="color: #E6DB74">&quot;Int64&quot;</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">new_nulls</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int(applications[col]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span> <span style="color: #FF4689">-</span> <span style="color: #F8F8F2">before_nulls</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">new_nulls</span> <span style="color: #FF4689">&gt;</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;clean&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">col</span><span style="color: #E6DB74">}: {</span><span style="color: #F8F8F2">new_nulls</span><span style="color: #E6DB74">} value(s) could not be parsed as numeric&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;clean&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">col</span><span style="color: #E6DB74">}: type coercion clean&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #959077"># ── Text normalization ────────────────────────────────────────────────────────</span>
+<span style="color: #959077"># Strip whitespace and convert &quot;nan&quot; string (produced when a blank Excel cell is</span>
+<span style="color: #959077"># cast to str) back to None so the database receives NULL, not the string &quot;nan&quot;.</span>
+<span style="color: #F8F8F2">text_columns</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span>
+    <span style="color: #E6DB74">&quot;utbildningsnamn&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;utbildningsomrade&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;beslut&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;diarienummer&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;lan&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;kommun&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;studieform&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;typ_av_examen&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;utbildningsanordnare&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;flera_kommuner&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">]</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">text_columns:</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+        <span style="color: #F8F8F2">applications[col]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+            <span style="color: #F8F8F2">applications[col]</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(str)</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">str</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()</span>
+            <span style="color: #FF4689">.</span><span style="color: #F8F8F2">replace({</span><span style="color: #E6DB74">&quot;nan&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;None&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">})</span>
+        <span style="color: #F8F8F2">)</span>
+
+<span style="color: #959077"># ── Value standardization ─────────────────────────────────────────────────────</span>
+<span style="color: #959077"># Sweden renamed &quot;Landsting&quot; to &quot;Region&quot; in 2019 - source files use both terms.</span>
+<span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+    <span style="color: #F8F8F2">landsting_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((applications[</span><span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;Landsting&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">replace(HUVUDMAN_MAP)</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">landsting_count</span> <span style="color: #FF4689">&gt;</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;clean&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;Replaced {</span><span style="color: #F8F8F2">landsting_count</span><span style="color: #E6DB74">} &#39;Landsting&#39; -&gt; &#39;Region&#39;&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;clean&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;huvudmannatyp: column missing, Landsting -&gt; Region not applied&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #959077"># ── Null summary ──────────────────────────────────────────────────────────────</span>
+<span style="color: #959077"># Only show columns with at least one null. High null % for year-gated columns</span>
+<span style="color: #959077"># (SUN5, SeQF, typ_av_examen, round counts) is expected - not a data error.</span>
+<span style="color: #F8F8F2">null_pct</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mean()</span> <span style="color: #FF4689">*</span> <span style="color: #AE81FF">100</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">round(</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">null_summary</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame({</span><span style="color: #E6DB74">&quot;Null %&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">null_pct,</span> <span style="color: #E6DB74">&quot;Count&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()})[</span>
+    <span style="color: #F8F8F2">null_pct</span> <span style="color: #FF4689">&gt;</span> <span style="color: #AE81FF">0</span>
+<span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sort_values(</span><span style="color: #E6DB74">&quot;Null %&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">ascending</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;diarienummer&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+    <span style="color: #F8F8F2">print(</span>
+        <span style="color: #E6DB74">f&quot;Duplicate diarienummer (expected - 2019 multi-municipality rows): &quot;</span>
+        <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">duplicated(subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&#39;diarienummer&#39;</span><span style="color: #F8F8F2">])</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span><span style="color: #E6DB74">:,}&quot;</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Unique diarienummer values : {</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;diarienummer&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">nunique()</span><span style="color: #E6DB74">:,}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Rows after cleaning        : {</span><span style="color: #F8F8F2">len(applications)</span><span style="color: #E6DB74">:,}</span><span style="color: #AE81FF">\n</span><span style="color: #E6DB74">&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">display(</span>
+    <span style="color: #F8F8F2">null_summary</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">bar(</span>
+        <span style="color: #F8F8F2">subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Null %&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">color</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;rgba(231,76,60,0.3)&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">vmin</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">vmax</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">100</span>
+    <span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">format({</span><span style="color: #E6DB74">&quot;Null %&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;{:.1f}%&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Count&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;{:,}&quot;</span><span style="color: #F8F8F2">})</span>
+<span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Duplicate diarienummer (expected - 2019 multi-municipality rows): 140
+Unique diarienummer values : 9,843
+Rows after cleaning        : 9,983
+
+</pre><div class="output-scroll"><style type="text/css">
+#T_d6fba_row0_col0 {
+  width: 10em;
+  background: linear-gradient(90deg, rgba(231,76,60,0.3) 63.3%, transparent 63.3%);
+}
+#T_d6fba_row1_col0, #T_d6fba_row2_col0, #T_d6fba_row3_col0 {
+  width: 10em;
+  background: linear-gradient(90deg, rgba(231,76,60,0.3) 62.8%, transparent 62.8%);
+}
+#T_d6fba_row4_col0 {
+  width: 10em;
+  background: linear-gradient(90deg, rgba(231,76,60,0.3) 38.3%, transparent 38.3%);
+}
+#T_d6fba_row5_col0, #T_d6fba_row6_col0 {
+  width: 10em;
+  background: linear-gradient(90deg, rgba(231,76,60,0.3) 23.5%, transparent 23.5%);
+}
+#T_d6fba_row7_col0, #T_d6fba_row8_col0 {
+  width: 10em;
+  background: linear-gradient(90deg, rgba(231,76,60,0.3) 11.1%, transparent 11.1%);
+}
+</style>
+<table id="T_d6fba">
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_d6fba_level0_col0" class="col_heading level0 col0" >Null %</th>
+      <th id="T_d6fba_level0_col1" class="col_heading level0 col1" >Count</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_d6fba_level0_row0" class="row_heading level0 row0" >seqf_niva</th>
+      <td id="T_d6fba_row0_col0" class="data row0 col0" >63.3%</td>
+      <td id="T_d6fba_row0_col1" class="data row0 col1" >6,322</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row1" class="row_heading level0 row1" >sun5_inriktning</th>
+      <td id="T_d6fba_row1_col0" class="data row1 col0" >62.8%</td>
+      <td id="T_d6fba_row1_col1" class="data row1 col1" >6,269</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row2" class="row_heading level0 row2" >smalt_yrkesomrade</th>
+      <td id="T_d6fba_row2_col0" class="data row2 col0" >62.8%</td>
+      <td id="T_d6fba_row2_col1" class="data row2 col1" >6,269</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row3" class="row_heading level0 row3" >sun5_inriktning_namn</th>
+      <td id="T_d6fba_row3_col0" class="data row3 col0" >62.8%</td>
+      <td id="T_d6fba_row3_col1" class="data row3 col1" >6,269</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row4" class="row_heading level0 row4" >typ_av_examen</th>
+      <td id="T_d6fba_row4_col0" class="data row4 col0" >38.3%</td>
+      <td id="T_d6fba_row4_col1" class="data row4 col1" >3,824</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row5" class="row_heading level0 row5" >beviljade_omgangar</th>
+      <td id="T_d6fba_row5_col0" class="data row5 col0" >23.5%</td>
+      <td id="T_d6fba_row5_col1" class="data row5 col1" >2,342</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row6" class="row_heading level0 row6" >sokta_omgangar</th>
+      <td id="T_d6fba_row6_col0" class="data row6 col0" >23.5%</td>
+      <td id="T_d6fba_row6_col1" class="data row6 col1" >2,342</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row7" class="row_heading level0 row7" >flera_kommuner</th>
+      <td id="T_d6fba_row7_col0" class="data row7 col0" >11.1%</td>
+      <td id="T_d6fba_row7_col1" class="data row7 col1" >1,105</td>
+    </tr>
+    <tr>
+      <th id="T_d6fba_level0_row8" class="row_heading level0 row8" >antal_kommuner</th>
+      <td id="T_d6fba_row8_col0" class="data row8 col0" >11.1%</td>
+      <td id="T_d6fba_row8_col1" class="data row8 col1" >1,105</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell markdown-cell"><div style='border-left: 4px solid #5b9bd5; padding: 12px 16px; border-radius: 4px; margin: 8px 0; background: rgba(91, 155, 213, 0.1);'>
+<strong>Null interpretation:</strong> High null rates in <code>sun5_inriktning</code>, <code>seqf_niva</code>, and <code>typ_av_examen</code> are expected and correct , these columns did not exist in earlier file versions. Nulls here mean the field was not collected in that year, not that data is missing.
+</div></section><section class="cell markdown-cell"><hr>
+<h2>5. Enrichment</h2>
+<p>Enrichment goes beyond cleaning , it derives new information from existing data to make the dataset more useful for consumers. We add three computed columns:</p>
+<table><thead><tr><th>New column</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code>beslut_normalized</code></td><td><code>str</code></td><td>English decision label: <code>approved</code> or <code>rejected</code></td></tr><tr><td><code>is_distance</code></td><td><code>bool</code></td><td>True if <code>studieform</code> contains <em>Distans</em></td></tr><tr><td><code>has_multiple_municipalities</code></td><td><code>bool</code></td><td>True if <code>flera_kommuner</code> is <em>Ja</em></td></tr></tbody></table></section><section class="cell"><div class="code-header"><span>Code cell 8</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># ── Normalized decision label ─────────────────────────────────────────────────</span>
+<span style="color: #959077"># Map raw Swedish beslut values to three canonical English labels.</span>
+<span style="color: #959077"># Rows whose beslut value is not in BESLUT_MAP become NaN - caught below and logged.</span>
+<span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;beslut&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;beslut&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(BESLUT_MAP)</span>
+    <span style="color: #F8F8F2">null_beslut</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int(applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">null_beslut</span> <span style="color: #FF4689">&gt;</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">unknown_values</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">loc[</span>
+            <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull(),</span> <span style="color: #E6DB74">&quot;beslut&quot;</span>
+        <span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">value_counts()</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;enrich&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;beslut_normalized: {</span><span style="color: #F8F8F2">null_beslut</span><span style="color: #E6DB74">} row(s) could not be mapped&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">str(unknown_values</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">to_dict()),</span>
+        <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;enrich&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;beslut_normalized: all values mapped&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #66D9EF">None</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;enrich&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;beslut_normalized: source column &#39;beslut&#39; missing, set to null&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #959077"># ── Distance flag ─────────────────────────────────────────────────────────────</span>
+<span style="color: #959077"># True for any studieform containing &quot;Distans&quot; (case-insensitive).</span>
+<span style="color: #959077"># fillna(&quot;&quot;) prevents NaN from propagating into the boolean result.</span>
+<span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;studieform&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;is_distance&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+        <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;studieform&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fillna(</span><span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">str</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">lower()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">str</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">contains(</span><span style="color: #E6DB74">&quot;distans&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;enrich&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;is_distance: {</span><span style="color: #F8F8F2">int(applications[</span><span style="color: #E6DB74">&#39;is_distance&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span><span style="color: #E6DB74">} distance programs&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;is_distance&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #66D9EF">False</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;enrich&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;is_distance: source column &#39;studieform&#39; missing, set to False&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #959077"># ── Multiple municipalities flag ──────────────────────────────────────────────</span>
+<span style="color: #959077"># True when flera_kommuner is &quot;Ja&quot; - both &quot;Ja&quot; and &quot;ja&quot; appear in source data.</span>
+<span style="color: #66D9EF">if</span> <span style="color: #E6DB74">&quot;flera_kommuner&quot;</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns:</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;has_multiple_municipalities&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+        <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;flera_kommuner&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fillna(</span><span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">str</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">strip()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">str</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">lower()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">eq(</span><span style="color: #E6DB74">&quot;ja&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;enrich&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;has_multiple_municipalities: {</span><span style="color: #F8F8F2">int(applications[</span><span style="color: #E6DB74">&#39;has_multiple_municipalities&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span><span style="color: #E6DB74">} programs&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;has_multiple_municipalities&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #66D9EF">False</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;enrich&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;has_multiple_municipalities: source column &#39;flera_kommuner&#39; missing, set to False&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">print(</span>
+    <span style="color: #E6DB74">f&quot;Schema after enrichment: {</span><span style="color: #F8F8F2">len(applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span><span style="color: #E6DB74">} columns  &quot;</span>
+    <span style="color: #E6DB74">f&quot;({</span><span style="color: #F8F8F2">len(KEEP_COLUMNS)</span><span style="color: #E6DB74">} base + 3 derived)</span><span style="color: #AE81FF">\n</span><span style="color: #E6DB74">&quot;</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">enrich_summary</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(</span>
+    <span style="color: #F8F8F2">[</span>
+        <span style="color: #F8F8F2">{</span>
+            <span style="color: #E6DB74">&quot;Column&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">col,</span>
+            <span style="color: #E6DB74">&quot;Values&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">str(applications[col]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">value_counts()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">to_dict()),</span>
+        <span style="color: #F8F8F2">}</span>
+        <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;is_distance&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;has_multiple_municipalities&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">]</span>
+<span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_index(</span><span style="color: #E6DB74">&quot;Column&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">display(enrich_summary)</span>
+</pre></div>
+<div class="output"><pre>Schema after enrichment: 26 columns  (23 base + 3 derived)
+
+</pre><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Values</th>
+    </tr>
+    <tr>
+      <th>Column</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>beslut_normalized</th>
+      <td>{'rejected': 6391, 'approved': 3591, 'withdrawn': 1}</td>
+    </tr>
+    <tr>
+      <th>is_distance</th>
+      <td>{False: 5722, True: 4261}</td>
+    </tr>
+    <tr>
+      <th>has_multiple_municipalities</th>
+      <td>{False: 8324, True: 1659}</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section><section class="cell markdown-cell"><hr>
+<h2>6. Validation</h2>
+<p>Before export, eight automated quality checks verify the dataset meets expected thresholds. Each check is recorded with a pass/fail status and a detail message , a green table here means the pipeline is working correctly end-to-end.</p>
+<p>A check that fails signals a problem in the pipeline, not something to work around.</p></section><section class="cell"><div class="code-header"><span>Code cell 9</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">quality_checks:</span> <span style="color: #F8F8F2">list[dict]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">record</span><span style="color: #F8F8F2">(name:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">passed:</span> <span style="color: #F8F8F2">bool,</span> <span style="color: #F8F8F2">detail:</span> <span style="color: #F8F8F2">str</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Record one quality check result.&quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">quality_checks</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+        <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;Check&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">name,</span> <span style="color: #E6DB74">&quot;Status&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Pass&quot;</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">passed</span> <span style="color: #66D9EF">else</span> <span style="color: #E6DB74">&quot;Fail&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Detail&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">detail}</span>
+    <span style="color: #F8F8F2">)</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">has_column</span><span style="color: #F8F8F2">(col:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">bool:</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns</span>
+
+
+<span style="color: #F8F8F2">record(</span>
+    <span style="color: #E6DB74">&quot;All years loaded&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;source_year&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">nunique()</span> <span style="color: #FF4689">==</span> <span style="color: #F8F8F2">len(YEAR_CONFIG),</span>
+    <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;source_year&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">nunique()</span><span style="color: #E6DB74">} / {</span><span style="color: #F8F8F2">len(YEAR_CONFIG)</span><span style="color: #E6DB74">} years present&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">record(</span>
+    <span style="color: #E6DB74">&quot;No completely empty rows&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">all(axis</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">any(),</span>
+    <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">all(axis</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span><span style="color: #E6DB74">} fully-null rows&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">has_column(</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">):</span>
+    <span style="color: #F8F8F2">record(</span>
+        <span style="color: #E6DB74">&quot;beslut_normalized fully populated&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span> <span style="color: #FF4689">==</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;beslut_normalized&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span><span style="color: #E6DB74">} nulls&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">record(</span>
+        <span style="color: #E6DB74">&quot;beslut_normalized only known values&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">set(applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">unique())</span>
+        <span style="color: #FF4689">&lt;=</span> <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;approved&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;rejected&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;withdrawn&quot;</span><span style="color: #F8F8F2">},</span>
+        <span style="color: #F8F8F2">str(applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">value_counts()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">to_dict()),</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">record(</span><span style="color: #E6DB74">&quot;beslut_normalized fully populated&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;column missing&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">record(</span><span style="color: #E6DB74">&quot;beslut_normalized only known values&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;column missing&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">has_column(</span><span style="color: #E6DB74">&quot;yh_poang&quot;</span><span style="color: #F8F8F2">):</span>
+    <span style="color: #F8F8F2">record(</span>
+        <span style="color: #E6DB74">&quot;yh_poang in realistic range (100-1000)&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;yh_poang&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">between(</span><span style="color: #AE81FF">100</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">1000</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">all(),</span>
+        <span style="color: #E6DB74">f&quot;min={</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;yh_poang&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">min()</span><span style="color: #E6DB74">}, max={</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;yh_poang&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">max()</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">record(</span><span style="color: #E6DB74">&quot;yh_poang in realistic range (100-1000)&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;column missing&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">has_column(</span><span style="color: #E6DB74">&quot;studietakt_procent&quot;</span><span style="color: #F8F8F2">):</span>
+    <span style="color: #F8F8F2">record(</span>
+        <span style="color: #E6DB74">&quot;studietakt_procent in range (1-200)&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;studietakt_procent&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">between(</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">200</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">all(),</span>
+        <span style="color: #E6DB74">f&quot;min={</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;studietakt_procent&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">min()</span><span style="color: #E6DB74">}, max={</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;studietakt_procent&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">max()</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">record(</span><span style="color: #E6DB74">&quot;studietakt_procent in range (1-200)&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;column missing&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">has_column(</span><span style="color: #E6DB74">&quot;diarienummer&quot;</span><span style="color: #F8F8F2">):</span>
+    <span style="color: #F8F8F2">record(</span>
+        <span style="color: #E6DB74">&quot;diarienummer non-null&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;diarienummer&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span> <span style="color: #FF4689">==</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&#39;diarienummer&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isnull()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span><span style="color: #E6DB74">} nulls&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">record(</span><span style="color: #E6DB74">&quot;diarienummer non-null&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;column missing&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">has_column(</span><span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">):</span>
+    <span style="color: #F8F8F2">record(</span>
+        <span style="color: #E6DB74">&quot;No Landsting values remain&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;Landsting&quot;</span> <span style="color: #FF4689">not</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">applications[</span><span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">unique(),</span>
+        <span style="color: #E6DB74">f&quot;Unique values: {</span><span style="color: #F8F8F2">sorted(applications[</span><span style="color: #E6DB74">&#39;huvudmannatyp&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">unique()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">tolist())</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">record(</span><span style="color: #E6DB74">&quot;No Landsting values remain&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;column missing&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">qc_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(quality_checks)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_index(</span><span style="color: #E6DB74">&quot;Check&quot;</span><span style="color: #F8F8F2">)</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">_style_status</span><span style="color: #F8F8F2">(value:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;Pass&quot;</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(46, 204, 113, 0.25); font-weight: 600&quot;</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;Fail&quot;</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(231, 76, 60, 0.25); font-weight: 600&quot;</span>
+    <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;&quot;</span>
+
+
+<span style="color: #F8F8F2">passed</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">sum(</span><span style="color: #AE81FF">1</span> <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">r</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">quality_checks</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">r[</span><span style="color: #E6DB74">&quot;Status&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;Pass&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">passed</span><span style="color: #E6DB74">} / {</span><span style="color: #F8F8F2">len(quality_checks)</span><span style="color: #E6DB74">} checks passed</span><span style="color: #AE81FF">\n</span><span style="color: #E6DB74">&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">display(qc_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(_style_status,</span> <span style="color: #F8F8F2">subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Status&quot;</span><span style="color: #F8F8F2">]))</span>
+
+<span style="color: #959077"># Forward each validation result to the pipeline log so the final report</span>
+<span style="color: #959077"># reflects quality check outcomes in one place.</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">check_result</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">quality_checks:</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;validate&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;ok&quot;</span> <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">check_result[</span><span style="color: #E6DB74">&quot;Status&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;Pass&quot;</span> <span style="color: #66D9EF">else</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">check_result[</span><span style="color: #E6DB74">&quot;Check&quot;</span><span style="color: #F8F8F2">],</span>
+        <span style="color: #F8F8F2">check_result[</span><span style="color: #E6DB74">&quot;Detail&quot;</span><span style="color: #F8F8F2">],</span>
+    <span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>8 / 8 checks passed
+
+</pre><div class="output-scroll"><style type="text/css">
+#T_37b31_row0_col0, #T_37b31_row1_col0, #T_37b31_row2_col0, #T_37b31_row3_col0, #T_37b31_row4_col0, #T_37b31_row5_col0, #T_37b31_row6_col0, #T_37b31_row7_col0 {
+  background-color: rgba(46, 204, 113, 0.25);
+  font-weight: 600;
+}
+</style>
+<table id="T_37b31">
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_37b31_level0_col0" class="col_heading level0 col0" >Status</th>
+      <th id="T_37b31_level0_col1" class="col_heading level0 col1" >Detail</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >Check</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_37b31_level0_row0" class="row_heading level0 row0" >All years loaded</th>
+      <td id="T_37b31_row0_col0" class="data row0 col0" >Pass</td>
+      <td id="T_37b31_row0_col1" class="data row0 col1" >8 / 8 years present</td>
+    </tr>
+    <tr>
+      <th id="T_37b31_level0_row1" class="row_heading level0 row1" >No completely empty rows</th>
+      <td id="T_37b31_row1_col0" class="data row1 col0" >Pass</td>
+      <td id="T_37b31_row1_col1" class="data row1 col1" >0 fully-null rows</td>
+    </tr>
+    <tr>
+      <th id="T_37b31_level0_row2" class="row_heading level0 row2" >beslut_normalized fully populated</th>
+      <td id="T_37b31_row2_col0" class="data row2 col0" >Pass</td>
+      <td id="T_37b31_row2_col1" class="data row2 col1" >0 nulls</td>
+    </tr>
+    <tr>
+      <th id="T_37b31_level0_row3" class="row_heading level0 row3" >beslut_normalized only known values</th>
+      <td id="T_37b31_row3_col0" class="data row3 col0" >Pass</td>
+      <td id="T_37b31_row3_col1" class="data row3 col1" >{'rejected': 6391, 'approved': 3591, 'withdrawn': 1}</td>
+    </tr>
+    <tr>
+      <th id="T_37b31_level0_row4" class="row_heading level0 row4" >yh_poang in realistic range (100-1000)</th>
+      <td id="T_37b31_row4_col0" class="data row4 col0" >Pass</td>
+      <td id="T_37b31_row4_col1" class="data row4 col1" >min=100, max=999</td>
+    </tr>
+    <tr>
+      <th id="T_37b31_level0_row5" class="row_heading level0 row5" >studietakt_procent in range (1-200)</th>
+      <td id="T_37b31_row5_col0" class="data row5 col0" >Pass</td>
+      <td id="T_37b31_row5_col1" class="data row5 col1" >min=50, max=100</td>
+    </tr>
+    <tr>
+      <th id="T_37b31_level0_row6" class="row_heading level0 row6" >diarienummer non-null</th>
+      <td id="T_37b31_row6_col0" class="data row6 col0" >Pass</td>
+      <td id="T_37b31_row6_col1" class="data row6 col1" >0 nulls</td>
+    </tr>
+    <tr>
+      <th id="T_37b31_level0_row7" class="row_heading level0 row7" >No Landsting values remain</th>
+      <td id="T_37b31_row7_col0" class="data row7 col0" >Pass</td>
+      <td id="T_37b31_row7_col1" class="data row7 col1" >Unique values: ['Kommun', 'Privat', 'Region', 'Statlig']</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell markdown-cell"><hr>
+<h2>7. Export</h2>
+<p>The curated dataset is exported to CSV. This file is the single source of truth for the PostgreSQL load script and any downstream consumers.</p></section><section class="cell"><div class="code-header"><span>Code cell 10</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">output_file</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">OUT_PATH</span> <span style="color: #FF4689">/</span> <span style="color: #E6DB74">&quot;curated_applications.csv&quot;</span>
+<span style="color: #F8F8F2">file_size_kb</span> <span style="color: #FF4689">=</span> <span style="color: #AE81FF">0.0</span>
+
+<span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #959077"># utf-8-sig writes a UTF-8 BOM at the start of the file:</span>
+    <span style="color: #959077">#   - Excel on Windows detects the BOM and opens Swedish characters correctly</span>
+    <span style="color: #959077">#   - PostgreSQL COPY and pd.read_csv(encoding=&quot;utf-8-sig&quot;) both strip the BOM on read</span>
+    <span style="color: #959077"># index=False omits the pandas row index, which has no meaning in the canonical schema.</span>
+    <span style="color: #F8F8F2">applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">to_csv(output_file,</span> <span style="color: #F8F8F2">index</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">encoding</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;utf-8-sig&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">file_size_kb</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">output_file</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">stat()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">st_size</span> <span style="color: #FF4689">/</span> <span style="color: #AE81FF">1024</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">file_size_kb</span> <span style="color: #FF4689">&lt;</span> <span style="color: #AE81FF">100</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;export&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;Output file smaller than expected ({</span><span style="color: #F8F8F2">file_size_kb</span><span style="color: #E6DB74">:.0f} KB)&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">len(applications)</span><span style="color: #E6DB74">:,} rows written - check upstream steps for data loss&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;export&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;CSV written ({</span><span style="color: #F8F8F2">file_size_kb</span><span style="color: #E6DB74">:.0f} KB, {</span><span style="color: #F8F8F2">len(applications)</span><span style="color: #E6DB74">:,} rows)&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #F8F8F2">str(output_file),</span>
+        <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">except</span> <span style="color: #A6E22E">OSError</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">exc:</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;export&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Failed to write CSV&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(exc))</span>
+    <span style="color: #66D9EF">raise</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;Export complete&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  Path     : {</span><span style="color: #F8F8F2">output_file</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  Rows     : {</span><span style="color: #F8F8F2">len(applications)</span><span style="color: #E6DB74">:,}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  Columns  : {</span><span style="color: #F8F8F2">len(applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  Size     : {</span><span style="color: #F8F8F2">file_size_kb</span><span style="color: #E6DB74">:.0f} KB&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;  Encoding : utf-8-sig (BOM - compatible with Excel and PostgreSQL COPY)&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;</span><span style="color: #AE81FF">\n</span><span style="color: #E6DB74">Column order:&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">i,</span> <span style="color: #F8F8F2">col</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">enumerate(applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns,</span> <span style="color: #AE81FF">1</span><span style="color: #F8F8F2">):</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  {</span><span style="color: #F8F8F2">i</span><span style="color: #E6DB74">:02d}. {</span><span style="color: #F8F8F2">col</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Export complete
+  Path     : myh-data-pipeline\data\curated_applications.csv
+  Rows     : 9,983
+  Columns  : 26
+  Size     : 2804 KB
+  Encoding : utf-8-sig (BOM - compatible with Excel and PostgreSQL COPY)
+
+Column order:
+  01. source_year
+  02. source_file
+  03. source_sheet
+  04. diarienummer
+  05. utbildningsnamn
+  06. utbildningsomrade
+  07. beslut
+  08. lan
+  09. kommun
+  10. yh_poang
+  11. studieform
+  12. studietakt_procent
+  13. utbildningsanordnare
+  14. huvudmannatyp
+  15. flera_kommuner
+  16. antal_kommuner
+  17. sokta_omgangar
+  18. beviljade_omgangar
+  19. typ_av_examen
+  20. sun5_inriktning
+  21. sun5_inriktning_namn
+  22. seqf_niva
+  23. smalt_yrkesomrade
+  24. beslut_normalized
+  25. is_distance
+  26. has_multiple_municipalities
+</pre></div></section><section class="cell markdown-cell"><hr>
+<h2>8. Pipeline Report</h2>
+<p>A full record of every event logged during this run - one row per check, load, or transformation step.</p>
+<p>Green = ok, amber = warning, red = error.</p>
+<p>This is the single place to look when something is off. The pipeline keeps running past warnings</p>
+<p>and logs them here rather than crashing, so this table is always populated even after a partial failure.</p></section><section class="cell"><div class="code-header"><span>Code cell 11</span><span>data_preparation</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">PIPELINE_LOG:</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;No events logged.&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">log_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(PIPELINE_LOG)</span>
+
+    <span style="color: #F8F8F2">ok_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((log_df[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+    <span style="color: #F8F8F2">warn_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((log_df[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+    <span style="color: #F8F8F2">err_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((log_df[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+
+    <span style="color: #F8F8F2">print(</span>
+        <span style="color: #E6DB74">f&quot;Pipeline complete  |  {</span><span style="color: #F8F8F2">ok_count</span><span style="color: #E6DB74">} ok  |  {</span><span style="color: #F8F8F2">warn_count</span><span style="color: #E6DB74">} warning(s)  |  {</span><span style="color: #F8F8F2">err_count</span><span style="color: #E6DB74">} error(s)&quot;</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">err_count:</span>
+        <span style="color: #F8F8F2">print(</span>
+            <span style="color: #E6DB74">&quot;  -&gt; Action required: review the errors below before using the exported data.&quot;</span>
+        <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">elif</span> <span style="color: #F8F8F2">warn_count:</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;  -&gt; Warnings present: data may be usable but check the details.&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;  -&gt; All events clean - data is ready for use.&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print()</span>
+
+    <span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">_style_level</span><span style="color: #F8F8F2">(value:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(46, 204, 113, 0.18)&quot;</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(230, 126, 34, 0.28); font-weight: 600&quot;</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(231, 76, 60, 0.28); font-weight: 600&quot;</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;&quot;</span>
+
+    <span style="color: #F8F8F2">display(log_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(_style_level,</span> <span style="color: #F8F8F2">subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]))</span>
+</pre></div>
+<div class="output"><pre>Pipeline complete  |  27 ok  |  5 warning(s)  |  0 error(s)
+  -&gt; Warnings present: data may be usable but check the details.
+
+</pre><div class="output-scroll"><style type="text/css">
+#T_85eb5_row0_col1, #T_85eb5_row1_col1, #T_85eb5_row3_col1, #T_85eb5_row5_col1, #T_85eb5_row7_col1, #T_85eb5_row9_col1, #T_85eb5_row11_col1, #T_85eb5_row12_col1, #T_85eb5_row13_col1, #T_85eb5_row14_col1, #T_85eb5_row15_col1, #T_85eb5_row16_col1, #T_85eb5_row17_col1, #T_85eb5_row18_col1, #T_85eb5_row19_col1, #T_85eb5_row20_col1, #T_85eb5_row21_col1, #T_85eb5_row22_col1, #T_85eb5_row23_col1, #T_85eb5_row24_col1, #T_85eb5_row25_col1, #T_85eb5_row26_col1, #T_85eb5_row27_col1, #T_85eb5_row28_col1, #T_85eb5_row29_col1, #T_85eb5_row30_col1, #T_85eb5_row31_col1 {
+  background-color: rgba(46, 204, 113, 0.18);
+}
+#T_85eb5_row2_col1, #T_85eb5_row4_col1, #T_85eb5_row6_col1, #T_85eb5_row8_col1, #T_85eb5_row10_col1 {
+  background-color: rgba(230, 126, 34, 0.28);
+  font-weight: 600;
+}
+</style>
+<table id="T_85eb5">
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_85eb5_level0_col0" class="col_heading level0 col0" >Step</th>
+      <th id="T_85eb5_level0_col1" class="col_heading level0 col1" >Level</th>
+      <th id="T_85eb5_level0_col2" class="col_heading level0 col2" >Message</th>
+      <th id="T_85eb5_level0_col3" class="col_heading level0 col3" >Detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_85eb5_level0_row0" class="row_heading level0 row0" >0</th>
+      <td id="T_85eb5_row0_col0" class="data row0 col0" >setup</td>
+      <td id="T_85eb5_row0_col1" class="data row0 col1" >ok</td>
+      <td id="T_85eb5_row0_col2" class="data row0 col2" >All 8 source files found</td>
+      <td id="T_85eb5_row0_col3" class="data row0 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row1" class="row_heading level0 row1" >1</th>
+      <td id="T_85eb5_row1_col0" class="data row1 col0" >harmonize</td>
+      <td id="T_85eb5_row1_col1" class="data row1 col1" >ok</td>
+      <td id="T_85eb5_row1_col2" class="data row1 col2" >2018: harmonized</td>
+      <td id="T_85eb5_row1_col3" class="data row1 col3" >1105 rows, 14 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row2" class="row_heading level0 row2" >2</th>
+      <td id="T_85eb5_row2_col0" class="data row2 col0" >harmonize</td>
+      <td id="T_85eb5_row2_col1" class="data row2 col1" >warning</td>
+      <td id="T_85eb5_row2_col2" class="data row2 col2" >2018: 9 KEEP_COLUMNS absent after rename</td>
+      <td id="T_85eb5_row2_col3" class="data row2 col3" >antal_kommuner, beviljade_omgangar, flera_kommuner, seqf_niva, smalt_yrkesomrade, sokta_omgangar, sun5_inriktning, sun5_inriktning_namn, typ_av_examen</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row3" class="row_heading level0 row3" >3</th>
+      <td id="T_85eb5_row3_col0" class="data row3 col0" >harmonize</td>
+      <td id="T_85eb5_row3_col1" class="data row3 col1" >ok</td>
+      <td id="T_85eb5_row3_col2" class="data row3 col2" >2019: harmonized</td>
+      <td id="T_85eb5_row3_col3" class="data row3 col3" >1237 rows, 16 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row4" class="row_heading level0 row4" >4</th>
+      <td id="T_85eb5_row4_col0" class="data row4 col0" >harmonize</td>
+      <td id="T_85eb5_row4_col1" class="data row4 col1" >warning</td>
+      <td id="T_85eb5_row4_col2" class="data row4 col2" >2019: 7 KEEP_COLUMNS absent after rename</td>
+      <td id="T_85eb5_row4_col3" class="data row4 col3" >beviljade_omgangar, seqf_niva, smalt_yrkesomrade, sokta_omgangar, sun5_inriktning, sun5_inriktning_namn, typ_av_examen</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row5" class="row_heading level0 row5" >5</th>
+      <td id="T_85eb5_row5_col0" class="data row5 col0" >harmonize</td>
+      <td id="T_85eb5_row5_col1" class="data row5 col1" >ok</td>
+      <td id="T_85eb5_row5_col2" class="data row5 col2" >2020: harmonized</td>
+      <td id="T_85eb5_row5_col3" class="data row5 col3" >1482 rows, 18 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row6" class="row_heading level0 row6" >6</th>
+      <td id="T_85eb5_row6_col0" class="data row6 col0" >harmonize</td>
+      <td id="T_85eb5_row6_col1" class="data row6 col1" >warning</td>
+      <td id="T_85eb5_row6_col2" class="data row6 col2" >2020: 5 KEEP_COLUMNS absent after rename</td>
+      <td id="T_85eb5_row6_col3" class="data row6 col3" >seqf_niva, smalt_yrkesomrade, sun5_inriktning, sun5_inriktning_namn, typ_av_examen</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row7" class="row_heading level0 row7" >7</th>
+      <td id="T_85eb5_row7_col0" class="data row7 col0" >harmonize</td>
+      <td id="T_85eb5_row7_col1" class="data row7 col1" >ok</td>
+      <td id="T_85eb5_row7_col2" class="data row7 col2" >2021: harmonized</td>
+      <td id="T_85eb5_row7_col3" class="data row7 col3" >1238 rows, 19 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row8" class="row_heading level0 row8" >8</th>
+      <td id="T_85eb5_row8_col0" class="data row8 col0" >harmonize</td>
+      <td id="T_85eb5_row8_col1" class="data row8 col1" >warning</td>
+      <td id="T_85eb5_row8_col2" class="data row8 col2" >2021: 4 KEEP_COLUMNS absent after rename</td>
+      <td id="T_85eb5_row8_col3" class="data row8 col3" >seqf_niva, smalt_yrkesomrade, sun5_inriktning, sun5_inriktning_namn</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row9" class="row_heading level0 row9" >9</th>
+      <td id="T_85eb5_row9_col0" class="data row9 col0" >harmonize</td>
+      <td id="T_85eb5_row9_col1" class="data row9 col1" >ok</td>
+      <td id="T_85eb5_row9_col2" class="data row9 col2" >2022: harmonized</td>
+      <td id="T_85eb5_row9_col3" class="data row9 col3" >1207 rows, 19 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row10" class="row_heading level0 row10" >10</th>
+      <td id="T_85eb5_row10_col0" class="data row10 col0" >harmonize</td>
+      <td id="T_85eb5_row10_col1" class="data row10 col1" >warning</td>
+      <td id="T_85eb5_row10_col2" class="data row10 col2" >2022: 4 KEEP_COLUMNS absent after rename</td>
+      <td id="T_85eb5_row10_col3" class="data row10 col3" >seqf_niva, smalt_yrkesomrade, sun5_inriktning, sun5_inriktning_namn</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row11" class="row_heading level0 row11" >11</th>
+      <td id="T_85eb5_row11_col0" class="data row11 col0" >harmonize</td>
+      <td id="T_85eb5_row11_col1" class="data row11 col1" >ok</td>
+      <td id="T_85eb5_row11_col2" class="data row11 col2" >2023: harmonized</td>
+      <td id="T_85eb5_row11_col3" class="data row11 col3" >1258 rows, 23 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row12" class="row_heading level0 row12" >12</th>
+      <td id="T_85eb5_row12_col0" class="data row12 col0" >harmonize</td>
+      <td id="T_85eb5_row12_col1" class="data row12 col1" >ok</td>
+      <td id="T_85eb5_row12_col2" class="data row12 col2" >2024: harmonized</td>
+      <td id="T_85eb5_row12_col3" class="data row12 col3" >1272 rows, 23 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row13" class="row_heading level0 row13" >13</th>
+      <td id="T_85eb5_row13_col0" class="data row13 col0" >harmonize</td>
+      <td id="T_85eb5_row13_col1" class="data row13 col1" >ok</td>
+      <td id="T_85eb5_row13_col2" class="data row13 col2" >2025: harmonized</td>
+      <td id="T_85eb5_row13_col3" class="data row13 col3" >1184 rows, 23 columns</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row14" class="row_heading level0 row14" >14</th>
+      <td id="T_85eb5_row14_col0" class="data row14 col0" >clean</td>
+      <td id="T_85eb5_row14_col1" class="data row14 col1" >ok</td>
+      <td id="T_85eb5_row14_col2" class="data row14 col2" >yh_poang: type coercion clean</td>
+      <td id="T_85eb5_row14_col3" class="data row14 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row15" class="row_heading level0 row15" >15</th>
+      <td id="T_85eb5_row15_col0" class="data row15 col0" >clean</td>
+      <td id="T_85eb5_row15_col1" class="data row15 col1" >ok</td>
+      <td id="T_85eb5_row15_col2" class="data row15 col2" >studietakt_procent: type coercion clean</td>
+      <td id="T_85eb5_row15_col3" class="data row15 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row16" class="row_heading level0 row16" >16</th>
+      <td id="T_85eb5_row16_col0" class="data row16 col0" >clean</td>
+      <td id="T_85eb5_row16_col1" class="data row16 col1" >ok</td>
+      <td id="T_85eb5_row16_col2" class="data row16 col2" >antal_kommuner: type coercion clean</td>
+      <td id="T_85eb5_row16_col3" class="data row16 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row17" class="row_heading level0 row17" >17</th>
+      <td id="T_85eb5_row17_col0" class="data row17 col0" >clean</td>
+      <td id="T_85eb5_row17_col1" class="data row17 col1" >ok</td>
+      <td id="T_85eb5_row17_col2" class="data row17 col2" >sokta_omgangar: type coercion clean</td>
+      <td id="T_85eb5_row17_col3" class="data row17 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row18" class="row_heading level0 row18" >18</th>
+      <td id="T_85eb5_row18_col0" class="data row18 col0" >clean</td>
+      <td id="T_85eb5_row18_col1" class="data row18 col1" >ok</td>
+      <td id="T_85eb5_row18_col2" class="data row18 col2" >beviljade_omgangar: type coercion clean</td>
+      <td id="T_85eb5_row18_col3" class="data row18 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row19" class="row_heading level0 row19" >19</th>
+      <td id="T_85eb5_row19_col0" class="data row19 col0" >clean</td>
+      <td id="T_85eb5_row19_col1" class="data row19 col1" >ok</td>
+      <td id="T_85eb5_row19_col2" class="data row19 col2" >Replaced 40 'Landsting' -> 'Region'</td>
+      <td id="T_85eb5_row19_col3" class="data row19 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row20" class="row_heading level0 row20" >20</th>
+      <td id="T_85eb5_row20_col0" class="data row20 col0" >enrich</td>
+      <td id="T_85eb5_row20_col1" class="data row20 col1" >ok</td>
+      <td id="T_85eb5_row20_col2" class="data row20 col2" >beslut_normalized: all values mapped</td>
+      <td id="T_85eb5_row20_col3" class="data row20 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row21" class="row_heading level0 row21" >21</th>
+      <td id="T_85eb5_row21_col0" class="data row21 col0" >enrich</td>
+      <td id="T_85eb5_row21_col1" class="data row21 col1" >ok</td>
+      <td id="T_85eb5_row21_col2" class="data row21 col2" >is_distance: 4261 distance programs</td>
+      <td id="T_85eb5_row21_col3" class="data row21 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row22" class="row_heading level0 row22" >22</th>
+      <td id="T_85eb5_row22_col0" class="data row22 col0" >enrich</td>
+      <td id="T_85eb5_row22_col1" class="data row22 col1" >ok</td>
+      <td id="T_85eb5_row22_col2" class="data row22 col2" >has_multiple_municipalities: 1659 programs</td>
+      <td id="T_85eb5_row22_col3" class="data row22 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row23" class="row_heading level0 row23" >23</th>
+      <td id="T_85eb5_row23_col0" class="data row23 col0" >validate</td>
+      <td id="T_85eb5_row23_col1" class="data row23 col1" >ok</td>
+      <td id="T_85eb5_row23_col2" class="data row23 col2" >All years loaded</td>
+      <td id="T_85eb5_row23_col3" class="data row23 col3" >8 / 8 years present</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row24" class="row_heading level0 row24" >24</th>
+      <td id="T_85eb5_row24_col0" class="data row24 col0" >validate</td>
+      <td id="T_85eb5_row24_col1" class="data row24 col1" >ok</td>
+      <td id="T_85eb5_row24_col2" class="data row24 col2" >No completely empty rows</td>
+      <td id="T_85eb5_row24_col3" class="data row24 col3" >0 fully-null rows</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row25" class="row_heading level0 row25" >25</th>
+      <td id="T_85eb5_row25_col0" class="data row25 col0" >validate</td>
+      <td id="T_85eb5_row25_col1" class="data row25 col1" >ok</td>
+      <td id="T_85eb5_row25_col2" class="data row25 col2" >beslut_normalized fully populated</td>
+      <td id="T_85eb5_row25_col3" class="data row25 col3" >0 nulls</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row26" class="row_heading level0 row26" >26</th>
+      <td id="T_85eb5_row26_col0" class="data row26 col0" >validate</td>
+      <td id="T_85eb5_row26_col1" class="data row26 col1" >ok</td>
+      <td id="T_85eb5_row26_col2" class="data row26 col2" >beslut_normalized only known values</td>
+      <td id="T_85eb5_row26_col3" class="data row26 col3" >{'rejected': 6391, 'approved': 3591, 'withdrawn': 1}</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row27" class="row_heading level0 row27" >27</th>
+      <td id="T_85eb5_row27_col0" class="data row27 col0" >validate</td>
+      <td id="T_85eb5_row27_col1" class="data row27 col1" >ok</td>
+      <td id="T_85eb5_row27_col2" class="data row27 col2" >yh_poang in realistic range (100-1000)</td>
+      <td id="T_85eb5_row27_col3" class="data row27 col3" >min=100, max=999</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row28" class="row_heading level0 row28" >28</th>
+      <td id="T_85eb5_row28_col0" class="data row28 col0" >validate</td>
+      <td id="T_85eb5_row28_col1" class="data row28 col1" >ok</td>
+      <td id="T_85eb5_row28_col2" class="data row28 col2" >studietakt_procent in range (1-200)</td>
+      <td id="T_85eb5_row28_col3" class="data row28 col3" >min=50, max=100</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row29" class="row_heading level0 row29" >29</th>
+      <td id="T_85eb5_row29_col0" class="data row29 col0" >validate</td>
+      <td id="T_85eb5_row29_col1" class="data row29 col1" >ok</td>
+      <td id="T_85eb5_row29_col2" class="data row29 col2" >diarienummer non-null</td>
+      <td id="T_85eb5_row29_col3" class="data row29 col3" >0 nulls</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row30" class="row_heading level0 row30" >30</th>
+      <td id="T_85eb5_row30_col0" class="data row30 col0" >validate</td>
+      <td id="T_85eb5_row30_col1" class="data row30 col1" >ok</td>
+      <td id="T_85eb5_row30_col2" class="data row30 col2" >No Landsting values remain</td>
+      <td id="T_85eb5_row30_col3" class="data row30 col3" >Unique values: ['Kommun', 'Privat', 'Region', 'Statlig']</td>
+    </tr>
+    <tr>
+      <th id="T_85eb5_level0_row31" class="row_heading level0 row31" >31</th>
+      <td id="T_85eb5_row31_col0" class="data row31 col0" >export</td>
+      <td id="T_85eb5_row31_col1" class="data row31 col1" >ok</td>
+      <td id="T_85eb5_row31_col2" class="data row31 col2" >CSV written (2804 KB, 9,983 rows)</td>
+      <td id="T_85eb5_row31_col3" class="data row31 col3" >myh-data-pipeline\data\curated_applications.csv</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell markdown-cell"><hr>
+<h2>9. Reflection</h2>
+<h3>What went well</h3>
+<p>The column naming differences across years turned out to be systematic rather than random , once the mapping table was established it handled all variants cleanly. The <code>Landsting -&gt; Region</code> normalization and the dual <code>Beslut</code> vocabulary (<code>Ej beviljad</code> vs <code>Avslag</code>) were the most meaningful semantic changes to document.</p>
+<p>Using a single <code>COLUMN_MAP</code> dictionary and a <code>KEEP_COLUMNS</code> list as the contract between raw data and the canonical schema meant the ETL loop itself stayed simple. Adding a new year would require only a new entry in <code>YEAR_CONFIG</code> and any new column variants in <code>COLUMN_MAP</code>.</p>
+<h3>Limitations</h3>
+<ul>
+<li><strong><code>typ_av_examen</code> is null for 2018 and 2020.</strong> The column existed in 2019 and 2021+ but not in the 2018 file or the 2020 Tabell 3 variant. This is a source limitation, not a pipeline error.</li>
+<li><strong>Duplicate <code>diarienummer</code> values exist across years</strong> , the same program can apply in multiple rounds. This is expected behaviour. Filtering by <code>source_year</code> gives clean per-round analysis.</li>
+<li><strong>2018–2019 are missing <code>sokta_omgangar</code> and <code>beviljade_omgangar</code>.</strong> The applied and approved rounds count was introduced in the 2020 file format.</li>
+</ul>
+<h3>Design decisions</h3>
+<ul>
+<li>SUN5, SeQF, and smalt yrkesområde columns are retained as nulls for pre-2023 rows rather than being dropped. A null is informative; dropping a column would hide the fact that the data exists at all for newer years.</li>
+<li>2016–2017 were considered and excluded. 2017 is borderline usable, but 2016 is missing Studieform and Huvudmannatyp entirely , including it would introduce a two-year gap in those fields that could silently bias any study-form analysis.</li>
+<li>Values are kept in Swedish in the base columns (<code>beslut</code>, <code>studieform</code>, <code>utbildningsomrade</code>). Only <code>beslut_normalized</code> is translated to English , this preserves the original data while providing a clean label for API consumers.</li>
+</ul></section></main></body></html>

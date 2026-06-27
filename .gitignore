@@ -1,0 +1,37 @@
+# Python environments
+venv/
+env/
+.venv/
+
+# Python caches
+__pycache__/
+*pycache*
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Generated data / local databases
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local assistant / internal notes
+.claude/
+CLAUDE.md
+worklog.md
+
+# Logs and OS files
+logs/
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1565 @@
+<!doctype html><html><head><meta charset="utf-8"><title>prediction_model</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0f1923;
+  --surface-1: #142231;
+  --surface-2: #1a2b3b;
+  --border: #2b4154;
+  --text: #e6edf3;
+  --muted: #9fb0bf;
+  --primary: #5aa7ff;
+  --success: #52d6a3;
+  --warning: #f4c95d;
+  --danger: #ff6b6b;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+body { padding: 28px; }
+.notebook-banner {
+  max-width: 1180px;
+  margin: 0 auto 24px auto;
+  padding: 18px 24px;
+  border: 1px solid rgba(45, 212, 191, .36);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(20,184,166,.32), rgba(15,25,35,.94) 55%, rgba(59,130,246,.25)),
+    #0f1923;
+  color: #e6fffb;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  box-shadow: 0 18px 60px -32px #2dd4bf;
+}
+.notebook {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.cell {
+  margin: 18px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+}
+.markdown-cell {
+  padding: 20px 24px;
+}
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 8px 14px;
+  color: var(--muted);
+  font: 12px/1.4 "JetBrains Mono", Consolas, monospace;
+}
+pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: 18px;
+  background: #0b121b;
+  color: var(--text);
+  font: 12px/1.65 "JetBrains Mono", Consolas, monospace;
+}
+code { color: #b6e0ff; }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 28px 0 18px;
+}
+h1, h2, h3 { color: var(--text); line-height: 1.18; }
+h1 { font-size: 32px; }
+h2 { margin-top: 26px; font-size: 24px; }
+h3 { margin-top: 22px; font-size: 18px; }
+p, li { color: var(--muted); line-height: 1.72; }
+a { color: var(--primary); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text);
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 7px 9px;
+  vertical-align: top;
+}
+th { background: var(--surface-2); }
+tr:nth-child(even) td { background: rgba(255,255,255,.025); }
+.output {
+  border-top: 1px solid var(--border);
+  background: #111d2a;
+  overflow-x: auto;
+}
+.output-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.output pre {
+  background: #111d2a;
+  color: #d4e5f5;
+}
+.status-ok { color: var(--success); }
+.status-warning { color: var(--warning); }
+.status-error { color: var(--danger); }
+/* Pygments Monokai output */
+div.highlight { margin: 0; }
+div.highlight pre {
+  margin: 0 !important;
+  padding: 18px !important;
+  overflow-x: auto !important;
+  font: 12px/1.65 "JetBrains Mono", Consolas, monospace !important;
+  border-radius: 0 !important;
+}
+</style>
+</head><body><div class="notebook-banner">MYH Data Pipeline · Notebook source and outputs</div><main class="notebook"><section class="cell markdown-cell"><h1>Predicting MYH Application Approval</h1>
+<p>Trains three classification models on 8 years of MYH (Myndigheten för yrkeshögskolan)</p>
+<p>application data (2018–2025) to estimate the probability that a new application will be</p>
+<p><strong>approved</strong> or <strong>rejected</strong>.</p>
+<p>Includes hyperparameter tuning via grid search, trend analysis, and an interactive predictor.</p>
+<p>Each section includes a plain-language explanation of the decisions made.</p></section><section class="cell"><div class="code-header"><span>Code cell 1</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #FF4689">import</span><span style="color: #F8F8F2"> json</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> pathlib </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">Path</span>
+
+<span style="color: #FF4689">import</span><span style="color: #F8F8F2"> joblib</span>
+<span style="color: #FF4689">import</span><span style="color: #F8F8F2"> numpy </span><span style="color: #66D9EF">as</span><span style="color: #F8F8F2"> np</span>
+<span style="color: #FF4689">import</span><span style="color: #F8F8F2"> pandas </span><span style="color: #66D9EF">as</span><span style="color: #F8F8F2"> pd</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> sklearn.ensemble </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">RandomForestClassifier</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> sklearn.metrics </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">accuracy_score,</span> <span style="color: #F8F8F2">classification_report</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> sklearn.model_selection </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">GridSearchCV,</span> <span style="color: #F8F8F2">train_test_split</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> sklearn.tree </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">DecisionTreeClassifier</span>
+<span style="color: #FF4689">from</span><span style="color: #F8F8F2"> xgboost </span><span style="color: #FF4689">import</span> <span style="color: #F8F8F2">XGBClassifier</span>
+
+<span style="color: #F8F8F2">RANDOM_STATE</span> <span style="color: #FF4689">=</span> <span style="color: #AE81FF">42</span>
+<span style="color: #F8F8F2">DATA_PATH</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">Path(</span><span style="color: #E6DB74">&quot;data/curated_applications.csv&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">MODEL_OUTPUT_PATH</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">Path(</span><span style="color: #E6DB74">&quot;api/model.joblib&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">MODEL_COLUMNS_OUTPUT_PATH</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">Path(</span><span style="color: #E6DB74">&quot;api/model_columns.json&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+</section><section class="cell"><div class="code-header"><span>Code cell 2</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># ── Pipeline event log ────────────────────────────────────────────────────────</span>
+<span style="color: #959077"># Shared list populated by every step. The final section renders it as a colour-coded table.</span>
+<span style="color: #F8F8F2">PIPELINE_LOG:</span> <span style="color: #F8F8F2">list[dict]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+
+
+<span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">log_event</span><span style="color: #F8F8F2">(step:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">level:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">message:</span> <span style="color: #F8F8F2">str,</span> <span style="color: #F8F8F2">detail:</span> <span style="color: #F8F8F2">str</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;&quot;</span><span style="color: #F8F8F2">)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">:</span>
+<span style="color: #F8F8F2">    </span><span style="color: #E6DB74">&quot;&quot;&quot;Append one event to the pipeline log.</span>
+
+<span style="color: #E6DB74">    level: &quot;ok&quot; | &quot;warning&quot; | &quot;error&quot;</span>
+<span style="color: #E6DB74">    &quot;&quot;&quot;</span>
+    <span style="color: #F8F8F2">PIPELINE_LOG</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+        <span style="color: #F8F8F2">{</span><span style="color: #E6DB74">&quot;Step&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">step,</span> <span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">level,</span> <span style="color: #E6DB74">&quot;Message&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">message,</span> <span style="color: #E6DB74">&quot;Detail&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">detail}</span>
+    <span style="color: #F8F8F2">)</span>
+
+
+<span style="color: #959077"># ── Setup check ───────────────────────────────────────────────────────────────</span>
+<span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">DATA_PATH</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">exists():</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;setup&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;Data file not found - run data_preparation.ipynb first&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">str(DATA_PATH),</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;setup&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Data file found&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(DATA_PATH))</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Setup: {&#39;OK&#39;</span><span style="color: #F8F8F2"> </span><span style="color: #66D9EF">if</span><span style="color: #F8F8F2"> DATA_PATH</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">exists() </span><span style="color: #66D9EF">else</span><span style="color: #F8F8F2"> </span><span style="color: #E6DB74">&#39;ERROR - data file missing&#39;}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Setup: OK
+</pre></div></section><section class="cell markdown-cell"><h2>1. Load and Prepare Data</h2>
+<p>Three possible outcomes exist: <code>approved</code>, <code>rejected</code>, and one single <code>withdrawn</code> row.</p>
+<p>We drop <code>withdrawn</code> (one sample cannot teach a model anything) and treat this as</p>
+<p><strong>binary classification</strong>: approved = 1, rejected = 0.</p>
+<p>The dataset is imbalanced , 64 % rejected vs 36 % approved. All three models are</p>
+<p>configured with <code>class_weight=&#x27;balanced&#x27;</code> (or XGBoost&#x27;s <code>scale_pos_weight</code>) so they</p>
+<p>do not simply learn to predict &quot;rejected&quot; for everything.</p></section><section class="cell"><div class="code-header"><span>Code cell 3</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">all_applications</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">read_csv(DATA_PATH)</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;load&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;CSV read: {</span><span style="color: #F8F8F2">all_applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:,} rows&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">except</span> <span style="color: #A6E22E">FileNotFoundError</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;load&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;Data file not found - run data_preparation.ipynb first&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">str(DATA_PATH),</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">raise</span>
+<span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">exc:</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;load&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Failed to read data file&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(exc))</span>
+    <span style="color: #66D9EF">raise</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Raw dataset: {</span><span style="color: #F8F8F2">all_applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:,} rows&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(all_applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">value_counts())</span>
+<span style="color: #F8F8F2">print()</span>
+
+<span style="color: #F8F8F2">binary_applications</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">all_applications[</span>
+    <span style="color: #F8F8F2">all_applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isin([</span><span style="color: #E6DB74">&quot;approved&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;rejected&quot;</span><span style="color: #F8F8F2">])</span>
+<span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">copy()</span>
+<span style="color: #F8F8F2">binary_applications[</span><span style="color: #E6DB74">&quot;target&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+    <span style="color: #F8F8F2">binary_applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;approved&quot;</span>
+<span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(int)</span>
+
+<span style="color: #F8F8F2">approved_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">binary_applications[</span><span style="color: #E6DB74">&quot;target&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span>
+<span style="color: #F8F8F2">rejected_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">len(binary_applications)</span> <span style="color: #FF4689">-</span> <span style="color: #F8F8F2">approved_count</span>
+<span style="color: #F8F8F2">imbalance_ratio</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">rejected_count</span> <span style="color: #FF4689">/</span> <span style="color: #F8F8F2">approved_count</span>
+
+<span style="color: #F8F8F2">withdrawn_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((all_applications[</span><span style="color: #E6DB74">&quot;beslut_normalized&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;withdrawn&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+<span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">withdrawn_count</span> <span style="color: #FF4689">&gt;</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;load&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;Dropped {</span><span style="color: #F8F8F2">withdrawn_count</span><span style="color: #E6DB74">} &#39;withdrawn&#39; row(s) - too few to train on&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">log_event(</span>
+    <span style="color: #E6DB74">&quot;load&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;Working dataset: {</span><span style="color: #F8F8F2">len(binary_applications)</span><span style="color: #E6DB74">:,} rows&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;approved={</span><span style="color: #F8F8F2">approved_count</span><span style="color: #E6DB74">:,} ({</span><span style="color: #F8F8F2">approved_count </span><span style="color: #FF4689">/</span><span style="color: #F8F8F2"> len(binary_applications)</span><span style="color: #E6DB74">:.1%}), &quot;</span>
+    <span style="color: #E6DB74">f&quot;rejected={</span><span style="color: #F8F8F2">rejected_count</span><span style="color: #E6DB74">:,} ({</span><span style="color: #F8F8F2">rejected_count </span><span style="color: #FF4689">/</span><span style="color: #F8F8F2"> len(binary_applications)</span><span style="color: #E6DB74">:.1%})&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Working dataset : {</span><span style="color: #F8F8F2">len(binary_applications)</span><span style="color: #E6DB74">:,} rows&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span>
+    <span style="color: #E6DB74">f&quot;  Approved      : {</span><span style="color: #F8F8F2">approved_count</span><span style="color: #E6DB74">:,} ({</span><span style="color: #F8F8F2">approved_count </span><span style="color: #FF4689">/</span><span style="color: #F8F8F2"> len(binary_applications)</span><span style="color: #E6DB74">:.1%})&quot;</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span>
+    <span style="color: #E6DB74">f&quot;  Rejected      : {</span><span style="color: #F8F8F2">rejected_count</span><span style="color: #E6DB74">:,} ({</span><span style="color: #F8F8F2">rejected_count </span><span style="color: #FF4689">/</span><span style="color: #F8F8F2"> len(binary_applications)</span><span style="color: #E6DB74">:.1%})&quot;</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  Imbalance ratio (rejected/approved): {</span><span style="color: #F8F8F2">imbalance_ratio</span><span style="color: #E6DB74">:.2f}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Raw dataset: 9,983 rows
+beslut_normalized
+rejected     6391
+approved     3591
+withdrawn       1
+Name: count, dtype: int64
+
+Working dataset : 9,982 rows
+  Approved      : 3,591 (36.0%)
+  Rejected      : 6,391 (64.0%)
+  Imbalance ratio (rejected/approved): 1.78
+</pre></div></section><section class="cell markdown-cell"><h2>2. Feature Engineering</h2>
+<p><strong>Included features:</strong></p>
+<table><thead><tr><th>Feature</th><th>Type</th><th>Why</th></tr></thead><tbody><tr><td><code>lan</code></td><td>categorical</td><td>Region strongly influences approval rates</td></tr><tr><td><code>utbildningsomrade</code></td><td>categorical</td><td>Education area is MYH&#x27;s primary lens</td></tr><tr><td><code>studieform</code></td><td>categorical</td><td>Classroom / distance / flex</td></tr><tr><td><code>huvudmannatyp</code></td><td>categorical</td><td>Private / municipal / regional / state operator</td></tr><tr><td><code>source_year</code></td><td>integer</td><td>Captures year-to-year policy changes</td></tr><tr><td><code>yh_poang</code></td><td>integer</td><td>Program size in YH points</td></tr><tr><td><code>studietakt_procent</code></td><td>integer</td><td>Study pace (50–100 %)</td></tr><tr><td><code>is_distance</code></td><td>boolean</td><td>Direct yes/no for distance mode</td></tr><tr><td><code>has_multiple_municipalities</code></td><td>boolean</td><td>Multi-municipality span</td></tr></tbody></table>
+<p><strong>Excluded:</strong></p>
+<ul>
+<li><code>utbildningsanordnare</code> , ~1 800 unique providers, creates thousands of dummy columns and causes overfitting</li>
+<li><code>beslut</code> , raw version of the target (data leakage)</li>
+<li><code>sun5_*</code>, <code>seqf_niva</code>, <code>smalt_yrkesomrade</code> , 62 % null (2023–2025 only)</li>
+<li><code>antal_kommuner</code> , 1 105 nulls from 2018; <code>has_multiple_municipalities</code> covers the same signal</li>
+</ul>
+<p>Categorical columns are one-hot encoded with <code>pd.get_dummies</code>. Numeric nulls are filled</p>
+<p>with the column median; categorical nulls become <code>&#x27;Unknown&#x27;</code>.</p></section><section class="cell"><div class="code-header"><span>Code cell 4</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">CATEGORICAL_FEATURES</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;lan&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;utbildningsomrade&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;studieform&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">]</span>
+<span style="color: #F8F8F2">NUMERIC_FEATURES</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;source_year&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;yh_poang&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;studietakt_procent&quot;</span><span style="color: #F8F8F2">]</span>
+<span style="color: #F8F8F2">BOOLEAN_FEATURES</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;is_distance&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;has_multiple_municipalities&quot;</span><span style="color: #F8F8F2">]</span>
+
+<span style="color: #F8F8F2">feature_data</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">binary_applications[</span>
+    <span style="color: #F8F8F2">CATEGORICAL_FEATURES</span> <span style="color: #FF4689">+</span> <span style="color: #F8F8F2">NUMERIC_FEATURES</span> <span style="color: #FF4689">+</span> <span style="color: #F8F8F2">BOOLEAN_FEATURES</span>
+<span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">copy()</span>
+
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">column</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">NUMERIC_FEATURES:</span>
+    <span style="color: #F8F8F2">null_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">feature_data[column]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">null_count</span> <span style="color: #FF4689">&gt;</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">median_value</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">feature_data[column]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">median()</span>
+        <span style="color: #F8F8F2">feature_data[column]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">feature_data[column]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fillna(median_value)</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;features&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">column</span><span style="color: #E6DB74">}: {</span><span style="color: #F8F8F2">null_count</span><span style="color: #E6DB74">} nulls filled with median ({</span><span style="color: #F8F8F2">median_value</span><span style="color: #E6DB74">})&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">column</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">CATEGORICAL_FEATURES:</span>
+    <span style="color: #F8F8F2">null_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">feature_data[column]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">isna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum()</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">null_count</span> <span style="color: #FF4689">&gt;</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">feature_data[column]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">feature_data[column]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fillna(</span><span style="color: #E6DB74">&quot;Unknown&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #F8F8F2">log_event(</span>
+            <span style="color: #E6DB74">&quot;features&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">column</span><span style="color: #E6DB74">}: {</span><span style="color: #F8F8F2">null_count</span><span style="color: #E6DB74">} nulls filled with &#39;Unknown&#39;&quot;</span>
+        <span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">encoded_features</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">get_dummies(</span>
+    <span style="color: #F8F8F2">feature_data,</span> <span style="color: #F8F8F2">columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">CATEGORICAL_FEATURES,</span> <span style="color: #F8F8F2">drop_first</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">column</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">BOOLEAN_FEATURES:</span>
+    <span style="color: #F8F8F2">encoded_features[column]</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">encoded_features[column]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fillna(</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">astype(int)</span>
+
+<span style="color: #F8F8F2">training_columns</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">list(encoded_features</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">columns)</span>
+<span style="color: #F8F8F2">log_event(</span>
+    <span style="color: #E6DB74">&quot;features&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;Feature matrix: {</span><span style="color: #F8F8F2">encoded_features</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:,} rows x {</span><span style="color: #F8F8F2">encoded_features</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">} columns&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span>
+    <span style="color: #E6DB74">f&quot;Feature matrix: {</span><span style="color: #F8F8F2">encoded_features</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:,} rows x {</span><span style="color: #F8F8F2">encoded_features</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">shape[</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">} columns&quot;</span>
+<span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Feature matrix: 9,982 rows x 49 columns
+</pre></div></section><section class="cell markdown-cell"><h2>3. Train / Test Split</h2>
+<p>80 % of rows are used for training; 20 % are held out as an unseen test set.</p>
+<p><code>stratify=y</code> ensures both halves keep the same 36 / 64 class ratio.</p>
+<p>The grid search in the next section uses 5-fold cross-validation <strong>within</strong> the training</p>
+<p>set only , the 20 % test set is never seen during parameter tuning, giving an unbiased</p>
+<p>final evaluation.</p></section><section class="cell"><div class="code-header"><span>Code cell 5</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">X</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">encoded_features</span>
+<span style="color: #F8F8F2">y</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">binary_applications[</span><span style="color: #E6DB74">&quot;target&quot;</span><span style="color: #F8F8F2">]</span>
+
+<span style="color: #F8F8F2">X_train,</span> <span style="color: #F8F8F2">X_test,</span> <span style="color: #F8F8F2">y_train,</span> <span style="color: #F8F8F2">y_test</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">train_test_split(</span>
+    <span style="color: #F8F8F2">X,</span> <span style="color: #F8F8F2">y,</span> <span style="color: #F8F8F2">test_size</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">0.2</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">random_state</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">RANDOM_STATE,</span> <span style="color: #F8F8F2">stratify</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">y</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">log_event(</span>
+    <span style="color: #E6DB74">&quot;split&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;Train/test split: {</span><span style="color: #F8F8F2">len(X_train)</span><span style="color: #E6DB74">:,} train, {</span><span style="color: #F8F8F2">len(X_test)</span><span style="color: #E6DB74">:,} test&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;Approval rate - train: {</span><span style="color: #F8F8F2">y_train</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mean()</span><span style="color: #E6DB74">:.1%}, test: {</span><span style="color: #F8F8F2">y_test</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mean()</span><span style="color: #E6DB74">:.1%}&quot;</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Training set : {</span><span style="color: #F8F8F2">len(X_train)</span><span style="color: #E6DB74">:,} rows&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Test set     : {</span><span style="color: #F8F8F2">len(X_test)</span><span style="color: #E6DB74">:,} rows&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Approval rate - train: {</span><span style="color: #F8F8F2">y_train</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mean()</span><span style="color: #E6DB74">:.1%}  test: {</span><span style="color: #F8F8F2">y_test</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mean()</span><span style="color: #E6DB74">:.1%}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Training set : 7,985 rows
+Test set     : 1,997 rows
+Approval rate - train: 36.0%  test: 36.0%
+</pre></div></section><section class="cell markdown-cell"><h2>4. Hyperparameter Tuning</h2>
+<p><code>GridSearchCV</code> tries every combination of parameters in the grid and picks the one</p>
+<p>with the highest average score across 5 cross-validation folds on the training set.</p>
+<p><strong>Scoring metric:</strong> F1 for the approved class , more informative than accuracy under</p>
+<p>class imbalance (a model that always predicts &quot;rejected&quot; scores 64 % accuracy but 0 F1).</p>
+<p>Each model is tuned independently. This section may take <strong>2–5 minutes</strong> to run.</p></section><section class="cell"><div class="code-header"><span>Code cell 6</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">decision_tree_param_grid</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;max_depth&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #AE81FF">4</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">6</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">8</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">10</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">12</span><span style="color: #F8F8F2">],</span>
+    <span style="color: #E6DB74">&quot;min_samples_leaf&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #AE81FF">5</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">10</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">20</span><span style="color: #F8F8F2">],</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #F8F8F2">decision_tree_grid_search</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">GridSearchCV(</span>
+    <span style="color: #F8F8F2">DecisionTreeClassifier(class_weight</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;balanced&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">random_state</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">RANDOM_STATE),</span>
+    <span style="color: #F8F8F2">decision_tree_param_grid,</span>
+    <span style="color: #F8F8F2">scoring</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;f1&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">cv</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">5</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">n_jobs</span><span style="color: #FF4689">=-</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fit(X_train,</span> <span style="color: #F8F8F2">y_train)</span>
+
+<span style="color: #F8F8F2">log_event(</span>
+    <span style="color: #E6DB74">&quot;tuning&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;Decision Tree - best CV F1: {</span><span style="color: #F8F8F2">decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">str(decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_),</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Decision Tree - best params : {</span><span style="color: #F8F8F2">decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Decision Tree - best CV F1  : {</span><span style="color: #F8F8F2">decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Decision Tree - best params : {&#x27;max_depth&#x27;: 12, &#x27;min_samples_leaf&#x27;: 20}
+Decision Tree - best CV F1  : 0.537
+</pre></div></section><section class="cell"><div class="code-header"><span>Code cell 7</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">random_forest_param_grid</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;n_estimators&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #AE81FF">100</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">200</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">300</span><span style="color: #F8F8F2">],</span>
+    <span style="color: #E6DB74">&quot;max_depth&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #AE81FF">8</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">12</span><span style="color: #F8F8F2">,</span> <span style="color: #66D9EF">None</span><span style="color: #F8F8F2">],</span>
+    <span style="color: #E6DB74">&quot;max_features&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;sqrt&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;log2&quot;</span><span style="color: #F8F8F2">],</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #F8F8F2">random_forest_grid_search</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">GridSearchCV(</span>
+    <span style="color: #F8F8F2">RandomForestClassifier(</span>
+        <span style="color: #F8F8F2">class_weight</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;balanced&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">random_state</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">RANDOM_STATE,</span> <span style="color: #F8F8F2">n_jobs</span><span style="color: #FF4689">=-</span><span style="color: #AE81FF">1</span>
+    <span style="color: #F8F8F2">),</span>
+    <span style="color: #F8F8F2">random_forest_param_grid,</span>
+    <span style="color: #F8F8F2">scoring</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;f1&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">cv</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">5</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">n_jobs</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fit(X_train,</span> <span style="color: #F8F8F2">y_train)</span>
+
+<span style="color: #F8F8F2">log_event(</span>
+    <span style="color: #E6DB74">&quot;tuning&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;Random Forest - best CV F1: {</span><span style="color: #F8F8F2">random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">str(random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_),</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Random Forest - best params : {</span><span style="color: #F8F8F2">random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Random Forest - best CV F1  : {</span><span style="color: #F8F8F2">random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Random Forest - best params : {&#x27;max_depth&#x27;: 12, &#x27;max_features&#x27;: &#x27;sqrt&#x27;, &#x27;n_estimators&#x27;: 300}
+Random Forest - best CV F1  : 0.559
+</pre></div></section><section class="cell"><div class="code-header"><span>Code cell 8</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">xgboost_param_grid</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;n_estimators&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #AE81FF">100</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">200</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">300</span><span style="color: #F8F8F2">],</span>
+    <span style="color: #E6DB74">&quot;max_depth&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #AE81FF">4</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">6</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">8</span><span style="color: #F8F8F2">],</span>
+    <span style="color: #E6DB74">&quot;learning_rate&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span><span style="color: #AE81FF">0.05</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">0.1</span><span style="color: #F8F8F2">,</span> <span style="color: #AE81FF">0.2</span><span style="color: #F8F8F2">],</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #F8F8F2">xgboost_grid_search</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">GridSearchCV(</span>
+    <span style="color: #F8F8F2">XGBClassifier(</span>
+        <span style="color: #F8F8F2">scale_pos_weight</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">imbalance_ratio,</span>
+        <span style="color: #F8F8F2">eval_metric</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;logloss&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">random_state</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">RANDOM_STATE,</span>
+        <span style="color: #F8F8F2">verbosity</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">),</span>
+    <span style="color: #F8F8F2">xgboost_param_grid,</span>
+    <span style="color: #F8F8F2">scoring</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;f1&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">cv</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">5</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">n_jobs</span><span style="color: #FF4689">=-</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">fit(X_train,</span> <span style="color: #F8F8F2">y_train)</span>
+
+<span style="color: #F8F8F2">log_event(</span>
+    <span style="color: #E6DB74">&quot;tuning&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">f&quot;XGBoost - best CV F1: {</span><span style="color: #F8F8F2">xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">str(xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_),</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;XGBoost - best params : {</span><span style="color: #F8F8F2">xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;XGBoost - best CV F1  : {</span><span style="color: #F8F8F2">xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>XGBoost - best params : {&#x27;learning_rate&#x27;: 0.1, &#x27;max_depth&#x27;: 4, &#x27;n_estimators&#x27;: 300}
+XGBoost - best CV F1  : 0.572
+</pre></div></section><section class="cell"><div class="code-header"><span>Code cell 9</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">grid_search_summary</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(</span>
+    <span style="color: #F8F8F2">[</span>
+        <span style="color: #F8F8F2">{</span>
+            <span style="color: #E6DB74">&quot;Model&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Decision Tree&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;Best params&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">str(decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_),</span>
+            <span style="color: #E6DB74">&quot;CV F1 (approved)&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">},</span>
+        <span style="color: #F8F8F2">{</span>
+            <span style="color: #E6DB74">&quot;Model&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Random Forest&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;Best params&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">str(random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_),</span>
+            <span style="color: #E6DB74">&quot;CV F1 (approved)&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">},</span>
+        <span style="color: #F8F8F2">{</span>
+            <span style="color: #E6DB74">&quot;Model&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;XGBoost&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;Best params&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">str(xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_params_),</span>
+            <span style="color: #E6DB74">&quot;CV F1 (approved)&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_score_</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">},</span>
+    <span style="color: #F8F8F2">]</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">grid_search_summary</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Model</th>
+      <th>Best params</th>
+      <th>CV F1 (approved)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>Decision Tree</td>
+      <td>{'max_depth': 12, 'min_samples_leaf': 20}</td>
+      <td>0.537</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>Random Forest</td>
+      <td>{'max_depth': 12, 'max_features': 'sqrt', 'n_e...</td>
+      <td>0.559</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>XGBoost</td>
+      <td>{'learning_rate': 0.1, 'max_depth': 4, 'n_esti...</td>
+      <td>0.572</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section><section class="cell"><div class="code-header"><span>Code cell 10</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># GridSearchCV with refit=True (default) already re-trains on the full X_train</span>
+<span style="color: #F8F8F2">models</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;Decision Tree&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">decision_tree_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_estimator_,</span>
+    <span style="color: #E6DB74">&quot;Random Forest&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">random_forest_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_estimator_,</span>
+    <span style="color: #E6DB74">&quot;XGBoost&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">xgboost_grid_search</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">best_estimator_,</span>
+<span style="color: #F8F8F2">}</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;Tuned models ready.&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><pre>Tuned models ready.
+</pre></div></section><section class="cell markdown-cell"><h2>5. Evaluate Models</h2>
+<p><strong>Why not just accuracy?</strong> A model that always predicts &quot;rejected&quot; scores 64 % accuracy</p>
+<p>while being completely useless. We focus on <strong>F1 (approved)</strong> , harmonic mean of precision</p>
+<p>and recall for the approved class.</p>
+<ul>
+<li><strong>Precision (approved):</strong> of all applications predicted approved, what fraction actually were?</li>
+<li><strong>Recall (approved):</strong> of all applications that were actually approved, how many did we catch?</li>
+<li><strong>F1:</strong> combines both into one score , the primary ranking metric.</li>
+</ul></section><section class="cell"><div class="code-header"><span>Code cell 11</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">model_name,</span> <span style="color: #F8F8F2">model</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">models</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items():</span>
+    <span style="color: #F8F8F2">y_pred</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">model</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">predict(X_test)</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;{&#39;=&#39;</span><span style="color: #F8F8F2"> </span><span style="color: #FF4689">*</span><span style="color: #F8F8F2"> </span><span style="color: #AE81FF">52</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  {</span><span style="color: #F8F8F2">model_name</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;{&#39;=&#39;</span><span style="color: #F8F8F2"> </span><span style="color: #FF4689">*</span><span style="color: #F8F8F2"> </span><span style="color: #AE81FF">52</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print(classification_report(y_test,</span> <span style="color: #F8F8F2">y_pred,</span> <span style="color: #F8F8F2">target_names</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;rejected&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;approved&quot;</span><span style="color: #F8F8F2">]))</span>
+    <span style="color: #F8F8F2">print()</span>
+</pre></div>
+<div class="output"><pre>====================================================
+  Decision Tree
+====================================================
+              precision    recall  f1-score   support
+
+    rejected       0.74      0.63      0.68      1279
+    approved       0.48      0.62      0.54       718
+
+    accuracy                           0.62      1997
+   macro avg       0.61      0.62      0.61      1997
+weighted avg       0.65      0.62      0.63      1997
+
+
+====================================================
+  Random Forest
+====================================================
+              precision    recall  f1-score   support
+
+    rejected       0.75      0.71      0.73      1279
+    approved       0.52      0.58      0.55       718
+
+    accuracy                           0.66      1997
+   macro avg       0.64      0.64      0.64      1997
+weighted avg       0.67      0.66      0.66      1997
+
+
+====================================================
+  XGBoost
+====================================================
+              precision    recall  f1-score   support
+
+    rejected       0.75      0.65      0.69      1279
+    approved       0.49      0.61      0.55       718
+
+    accuracy                           0.63      1997
+   macro avg       0.62      0.63      0.62      1997
+weighted avg       0.66      0.63      0.64      1997
+
+
+</pre></div></section><section class="cell"><div class="code-header"><span>Code cell 12</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #959077"># Top-10 feature importances per model - tabular format.</span>
+<span style="color: #F8F8F2">importance_rows</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">model_name,</span> <span style="color: #F8F8F2">model</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">models</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items():</span>
+    <span style="color: #F8F8F2">importances</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">model</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">feature_importances_</span>
+    <span style="color: #F8F8F2">top_indices</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">np</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">argsort(importances)[::</span><span style="color: #FF4689">-</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">][:</span><span style="color: #AE81FF">10</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">rank,</span> <span style="color: #F8F8F2">idx</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">enumerate(top_indices,</span> <span style="color: #AE81FF">1</span><span style="color: #F8F8F2">):</span>
+        <span style="color: #F8F8F2">importance_rows</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+            <span style="color: #F8F8F2">{</span>
+                <span style="color: #E6DB74">&quot;Model&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">model_name,</span>
+                <span style="color: #E6DB74">&quot;Rank&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">rank,</span>
+                <span style="color: #E6DB74">&quot;Feature&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">training_columns[idx],</span>
+                <span style="color: #E6DB74">&quot;Importance&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">round(float(importances[idx]),</span> <span style="color: #AE81FF">4</span><span style="color: #F8F8F2">),</span>
+            <span style="color: #F8F8F2">}</span>
+        <span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">importance_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(importance_rows)</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">model_name</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">models:</span>
+    <span style="color: #F8F8F2">model_slice</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">importance_df[importance_df[</span><span style="color: #E6DB74">&quot;Model&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #F8F8F2">model_name]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_index(</span><span style="color: #E6DB74">&quot;Rank&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">display(</span>
+        <span style="color: #F8F8F2">model_slice[[</span><span style="color: #E6DB74">&quot;Feature&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Importance&quot;</span><span style="color: #F8F8F2">]]</span>
+        <span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">background_gradient(subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Importance&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">cmap</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;Blues&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #FF4689">.</span><span style="color: #F8F8F2">format({</span><span style="color: #E6DB74">&quot;Importance&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;{:.4f}&quot;</span><span style="color: #F8F8F2">})</span>
+        <span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_caption(</span><span style="color: #E6DB74">f&quot;Top 10 Feature Importances - {</span><span style="color: #F8F8F2">model_name</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+        <span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_table_styles(</span>
+            <span style="color: #F8F8F2">[</span>
+                <span style="color: #F8F8F2">{</span>
+                    <span style="color: #E6DB74">&quot;selector&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;caption&quot;</span><span style="color: #F8F8F2">,</span>
+                    <span style="color: #E6DB74">&quot;props&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span>
+                        <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;font-size&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;0.95em&quot;</span><span style="color: #F8F8F2">),</span>
+                        <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;font-weight&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;bold&quot;</span><span style="color: #F8F8F2">),</span>
+                        <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;text-align&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;left&quot;</span><span style="color: #F8F8F2">),</span>
+                        <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;padding-bottom&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;8px&quot;</span><span style="color: #F8F8F2">),</span>
+                    <span style="color: #F8F8F2">],</span>
+                <span style="color: #F8F8F2">}</span>
+            <span style="color: #F8F8F2">]</span>
+        <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><style type="text/css">
+#T_24821 caption {
+  font-size: 0.95em;
+  font-weight: bold;
+  text-align: left;
+  padding-bottom: 8px;
+}
+#T_24821_row0_col1 {
+  background-color: #08306b;
+  color: #f1f1f1;
+}
+#T_24821_row1_col1 {
+  background-color: #125da6;
+  color: #f1f1f1;
+}
+#T_24821_row2_col1 {
+  background-color: #1b69af;
+  color: #f1f1f1;
+}
+#T_24821_row3_col1 {
+  background-color: #72b2d8;
+  color: #f1f1f1;
+}
+#T_24821_row4_col1 {
+  background-color: #a9cfe5;
+  color: #000000;
+}
+#T_24821_row5_col1 {
+  background-color: #afd1e7;
+  color: #000000;
+}
+#T_24821_row6_col1 {
+  background-color: #b7d4ea;
+  color: #000000;
+}
+#T_24821_row7_col1 {
+  background-color: #f4f9fe;
+  color: #000000;
+}
+#T_24821_row8_col1 {
+  background-color: #f5f9fe;
+  color: #000000;
+}
+#T_24821_row9_col1 {
+  background-color: #f7fbff;
+  color: #000000;
+}
+</style>
+<table id="T_24821">
+  <caption>Top 10 Feature Importances - Decision Tree</caption>
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_24821_level0_col0" class="col_heading level0 col0" >Feature</th>
+      <th id="T_24821_level0_col1" class="col_heading level0 col1" >Importance</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >Rank</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_24821_level0_row0" class="row_heading level0 row0" >1</th>
+      <td id="T_24821_row0_col0" class="data row0 col0" >utbildningsomrade_Teknik och tillverkning</td>
+      <td id="T_24821_row0_col1" class="data row0 col1" >0.1723</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row1" class="row_heading level0 row1" >2</th>
+      <td id="T_24821_row1_col0" class="data row1 col0" >source_year</td>
+      <td id="T_24821_row1_col1" class="data row1 col1" >0.1466</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row2" class="row_heading level0 row2" >3</th>
+      <td id="T_24821_row2_col0" class="data row2 col0" >yh_poang</td>
+      <td id="T_24821_row2_col1" class="data row2 col1" >0.1402</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row3" class="row_heading level0 row3" >4</th>
+      <td id="T_24821_row3_col0" class="data row3 col0" >huvudmannatyp_Privat</td>
+      <td id="T_24821_row3_col1" class="data row3 col1" >0.0966</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row4" class="row_heading level0 row4" >5</th>
+      <td id="T_24821_row4_col0" class="data row4 col0" >utbildningsomrade_Data/IT</td>
+      <td id="T_24821_row4_col1" class="data row4 col1" >0.0759</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row5" class="row_heading level0 row5" >6</th>
+      <td id="T_24821_row5_col0" class="data row5 col0" >utbildningsomrade_Ekonomi, administration och försäljning</td>
+      <td id="T_24821_row5_col1" class="data row5 col1" >0.0726</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row6" class="row_heading level0 row6" >7</th>
+      <td id="T_24821_row6_col0" class="data row6 col0" >studieform_Bunden</td>
+      <td id="T_24821_row6_col1" class="data row6 col1" >0.0696</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row7" class="row_heading level0 row7" >8</th>
+      <td id="T_24821_row7_col0" class="data row7 col0" >lan_Skåne</td>
+      <td id="T_24821_row7_col1" class="data row7 col1" >0.0281</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row8" class="row_heading level0 row8" >9</th>
+      <td id="T_24821_row8_col0" class="data row8 col0" >lan_Stockholm</td>
+      <td id="T_24821_row8_col1" class="data row8 col1" >0.0274</td>
+    </tr>
+    <tr>
+      <th id="T_24821_level0_row9" class="row_heading level0 row9" >10</th>
+      <td id="T_24821_row9_col0" class="data row9 col0" >is_distance</td>
+      <td id="T_24821_row9_col1" class="data row9 col1" >0.0256</td>
+    </tr>
+  </tbody>
+</table>
+</div><div class="output-scroll"><style type="text/css">
+#T_a443a caption {
+  font-size: 0.95em;
+  font-weight: bold;
+  text-align: left;
+  padding-bottom: 8px;
+}
+#T_a443a_row0_col1 {
+  background-color: #08306b;
+  color: #f1f1f1;
+}
+#T_a443a_row1_col1 {
+  background-color: #083e81;
+  color: #f1f1f1;
+}
+#T_a443a_row2_col1 {
+  background-color: #85bcdc;
+  color: #000000;
+}
+#T_a443a_row3_col1 {
+  background-color: #bad6eb;
+  color: #000000;
+}
+#T_a443a_row4_col1 {
+  background-color: #d0e1f2;
+  color: #000000;
+}
+#T_a443a_row5_col1 {
+  background-color: #d9e7f5;
+  color: #000000;
+}
+#T_a443a_row6_col1 {
+  background-color: #e4eff9;
+  color: #000000;
+}
+#T_a443a_row7_col1 {
+  background-color: #f2f8fd;
+  color: #000000;
+}
+#T_a443a_row8_col1 {
+  background-color: #f3f8fe;
+  color: #000000;
+}
+#T_a443a_row9_col1 {
+  background-color: #f7fbff;
+  color: #000000;
+}
+</style>
+<table id="T_a443a">
+  <caption>Top 10 Feature Importances - Random Forest</caption>
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_a443a_level0_col0" class="col_heading level0 col0" >Feature</th>
+      <th id="T_a443a_level0_col1" class="col_heading level0 col1" >Importance</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >Rank</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_a443a_level0_row0" class="row_heading level0 row0" >1</th>
+      <td id="T_a443a_row0_col0" class="data row0 col0" >yh_poang</td>
+      <td id="T_a443a_row0_col1" class="data row0 col1" >0.1632</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row1" class="row_heading level0 row1" >2</th>
+      <td id="T_a443a_row1_col0" class="data row1 col0" >source_year</td>
+      <td id="T_a443a_row1_col1" class="data row1 col1" >0.1555</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row2" class="row_heading level0 row2" >3</th>
+      <td id="T_a443a_row2_col0" class="data row2 col0" >utbildningsomrade_Teknik och tillverkning</td>
+      <td id="T_a443a_row2_col1" class="data row2 col1" >0.0845</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row3" class="row_heading level0 row3" >4</th>
+      <td id="T_a443a_row3_col0" class="data row3 col0" >utbildningsomrade_Data/IT</td>
+      <td id="T_a443a_row3_col1" class="data row3 col1" >0.0639</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row4" class="row_heading level0 row4" >5</th>
+      <td id="T_a443a_row4_col0" class="data row4 col0" >huvudmannatyp_Privat</td>
+      <td id="T_a443a_row4_col1" class="data row4 col1" >0.0522</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row5" class="row_heading level0 row5" >6</th>
+      <td id="T_a443a_row5_col0" class="data row5 col0" >utbildningsomrade_Ekonomi, administration och försäljning</td>
+      <td id="T_a443a_row5_col1" class="data row5 col1" >0.0456</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row6" class="row_heading level0 row6" >7</th>
+      <td id="T_a443a_row6_col0" class="data row6 col0" >huvudmannatyp_Kommun</td>
+      <td id="T_a443a_row6_col1" class="data row6 col1" >0.0373</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row7" class="row_heading level0 row7" >8</th>
+      <td id="T_a443a_row7_col0" class="data row7 col0" >studietakt_procent</td>
+      <td id="T_a443a_row7_col1" class="data row7 col1" >0.0276</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row8" class="row_heading level0 row8" >9</th>
+      <td id="T_a443a_row8_col0" class="data row8 col0" >studieform_Bunden</td>
+      <td id="T_a443a_row8_col1" class="data row8 col1" >0.0272</td>
+    </tr>
+    <tr>
+      <th id="T_a443a_level0_row9" class="row_heading level0 row9" >10</th>
+      <td id="T_a443a_row9_col0" class="data row9 col0" >studieform_Distans</td>
+      <td id="T_a443a_row9_col1" class="data row9 col1" >0.0241</td>
+    </tr>
+  </tbody>
+</table>
+</div><div class="output-scroll"><style type="text/css">
+#T_42d56 caption {
+  font-size: 0.95em;
+  font-weight: bold;
+  text-align: left;
+  padding-bottom: 8px;
+}
+#T_42d56_row0_col1 {
+  background-color: #08306b;
+  color: #f1f1f1;
+}
+#T_42d56_row1_col1 {
+  background-color: #08519c;
+  color: #f1f1f1;
+}
+#T_42d56_row2_col1 {
+  background-color: #6fb0d7;
+  color: #f1f1f1;
+}
+#T_42d56_row3_col1 {
+  background-color: #c3daee;
+  color: #000000;
+}
+#T_42d56_row4_col1 {
+  background-color: #d1e2f3;
+  color: #000000;
+}
+#T_42d56_row5_col1 {
+  background-color: #dbe9f6;
+  color: #000000;
+}
+#T_42d56_row6_col1 {
+  background-color: #dfecf7;
+  color: #000000;
+}
+#T_42d56_row7_col1 {
+  background-color: #e9f2fa;
+  color: #000000;
+}
+#T_42d56_row8_col1 {
+  background-color: #eff6fc;
+  color: #000000;
+}
+#T_42d56_row9_col1 {
+  background-color: #f7fbff;
+  color: #000000;
+}
+</style>
+<table id="T_42d56">
+  <caption>Top 10 Feature Importances - XGBoost</caption>
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_42d56_level0_col0" class="col_heading level0 col0" >Feature</th>
+      <th id="T_42d56_level0_col1" class="col_heading level0 col1" >Importance</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >Rank</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_42d56_level0_row0" class="row_heading level0 row0" >1</th>
+      <td id="T_42d56_row0_col0" class="data row0 col0" >utbildningsomrade_Teknik och tillverkning</td>
+      <td id="T_42d56_row0_col1" class="data row0 col1" >0.1118</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row1" class="row_heading level0 row1" >2</th>
+      <td id="T_42d56_row1_col0" class="data row1 col0" >huvudmannatyp_Privat</td>
+      <td id="T_42d56_row1_col1" class="data row1 col1" >0.1004</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row2" class="row_heading level0 row2" >3</th>
+      <td id="T_42d56_row2_col0" class="data row2 col0" >utbildningsomrade_Data/IT</td>
+      <td id="T_42d56_row2_col1" class="data row2 col1" >0.0662</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row3" class="row_heading level0 row3" >4</th>
+      <td id="T_42d56_row3_col0" class="data row3 col0" >utbildningsomrade_Ekonomi, administration och försäljning</td>
+      <td id="T_42d56_row3_col1" class="data row3 col1" >0.0459</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row4" class="row_heading level0 row4" >5</th>
+      <td id="T_42d56_row4_col0" class="data row4 col0" >is_distance</td>
+      <td id="T_42d56_row4_col1" class="data row4 col1" >0.0397</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row5" class="row_heading level0 row5" >6</th>
+      <td id="T_42d56_row5_col0" class="data row5 col0" >lan_Jönköping</td>
+      <td id="T_42d56_row5_col1" class="data row5 col1" >0.0352</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row6" class="row_heading level0 row6" >7</th>
+      <td id="T_42d56_row6_col0" class="data row6 col0" >utbildningsomrade_Säkerhetstjänster</td>
+      <td id="T_42d56_row6_col1" class="data row6 col1" >0.0333</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row7" class="row_heading level0 row7" >8</th>
+      <td id="T_42d56_row7_col0" class="data row7 col0" >lan_Flera kommuner</td>
+      <td id="T_42d56_row7_col1" class="data row7 col1" >0.0292</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row8" class="row_heading level0 row8" >9</th>
+      <td id="T_42d56_row8_col0" class="data row8 col0" >utbildningsomrade_Hälso- och sjukvård samt socialt arbete</td>
+      <td id="T_42d56_row8_col1" class="data row8 col1" >0.0262</td>
+    </tr>
+    <tr>
+      <th id="T_42d56_level0_row9" class="row_heading level0 row9" >10</th>
+      <td id="T_42d56_row9_col0" class="data row9 col0" >lan_Skåne</td>
+      <td id="T_42d56_row9_col1" class="data row9 col1" >0.0226</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell"><div class="code-header"><span>Code cell 13</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">comparison_rows</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">[]</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">model_name,</span> <span style="color: #F8F8F2">model</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">models</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">items():</span>
+    <span style="color: #F8F8F2">y_pred</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">model</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">predict(X_test)</span>
+    <span style="color: #F8F8F2">report</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">classification_report(y_test,</span> <span style="color: #F8F8F2">y_pred,</span> <span style="color: #F8F8F2">output_dict</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">f1_approved</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">report[</span><span style="color: #E6DB74">&quot;1&quot;</span><span style="color: #F8F8F2">][</span><span style="color: #E6DB74">&quot;f1-score&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">test_accuracy</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">accuracy_score(y_test,</span> <span style="color: #F8F8F2">y_pred)</span>
+    <span style="color: #F8F8F2">comparison_rows</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">append(</span>
+        <span style="color: #F8F8F2">{</span>
+            <span style="color: #E6DB74">&quot;Model&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">model_name,</span>
+            <span style="color: #E6DB74">&quot;Accuracy&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">test_accuracy</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;F1 (approved)&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">f1_approved</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;Recall (approved)&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">report[</span><span style="color: #E6DB74">&#39;1&#39;</span><span style="color: #F8F8F2">][</span><span style="color: #E6DB74">&#39;recall&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;F1 (rejected)&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">report[</span><span style="color: #E6DB74">&#39;0&#39;</span><span style="color: #F8F8F2">][</span><span style="color: #E6DB74">&#39;f1-score&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;Recall (rejected)&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">report[</span><span style="color: #E6DB74">&#39;0&#39;</span><span style="color: #F8F8F2">][</span><span style="color: #E6DB74">&#39;recall&#39;</span><span style="color: #F8F8F2">]</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">}</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;evaluate&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">model_name</span><span style="color: #E6DB74">}: accuracy={</span><span style="color: #F8F8F2">test_accuracy</span><span style="color: #E6DB74">:.3f}, F1(approved)={</span><span style="color: #F8F8F2">f1_approved</span><span style="color: #E6DB74">:.3f}&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(comparison_rows)</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Model</th>
+      <th>Accuracy</th>
+      <th>F1 (approved)</th>
+      <th>Recall (approved)</th>
+      <th>F1 (rejected)</th>
+      <th>Recall (rejected)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>Decision Tree</td>
+      <td>0.623</td>
+      <td>0.540</td>
+      <td>0.616</td>
+      <td>0.681</td>
+      <td>0.628</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>Random Forest</td>
+      <td>0.659</td>
+      <td>0.548</td>
+      <td>0.575</td>
+      <td>0.726</td>
+      <td>0.706</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>XGBoost</td>
+      <td>0.634</td>
+      <td>0.546</td>
+      <td>0.611</td>
+      <td>0.694</td>
+      <td>0.647</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div></section><section class="cell markdown-cell"><h2>6. Approval Trends (2018–2025)</h2>
+<p>These charts use raw historical counts , not model predictions.</p>
+<p>They show how competitive MYH has become over time and which education areas</p>
+<p>have the best and worst track records.</p></section><section class="cell"><div class="code-header"><span>Code cell 14</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">yearly_stats</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+    <span style="color: #F8F8F2">binary_applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">groupby(</span><span style="color: #E6DB74">&quot;source_year&quot;</span><span style="color: #F8F8F2">)[</span><span style="color: #E6DB74">&quot;target&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">agg(total_applications</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;count&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">approved_applications</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;sum&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">assign(</span>
+        <span style="color: #F8F8F2">approval_rate_pct</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">df:</span> <span style="color: #F8F8F2">(</span>
+            <span style="color: #F8F8F2">df[</span><span style="color: #E6DB74">&quot;approved_applications&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">/</span> <span style="color: #F8F8F2">df[</span><span style="color: #E6DB74">&quot;total_applications&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">*</span> <span style="color: #AE81FF">100</span>
+        <span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">round(</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">reset_index()</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(yearly_stats</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">to_string(index</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span><span style="color: #F8F8F2">))</span>
+</pre></div>
+<div class="output"><pre> source_year  total_applications  approved_applications  approval_rate_pct
+        2018                1105                    496               44.9
+        2019                1237                    482               39.0
+        2020                1482                    484               32.7
+        2021                1238                    426               34.4
+        2022                1207                    420               34.8
+        2023                1258                    477               37.9
+        2024                1272                    344               27.0
+        2025                1183                    462               39.1
+</pre></div></section><section class="cell"><div class="code-header"><span>Code cell 15</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">area_rates</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">(</span>
+    <span style="color: #F8F8F2">binary_applications</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">groupby(</span><span style="color: #E6DB74">&quot;utbildningsomrade&quot;</span><span style="color: #F8F8F2">)[</span><span style="color: #E6DB74">&quot;target&quot;</span><span style="color: #F8F8F2">]</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">agg(total_applications</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;count&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">approved_applications</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;sum&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">assign(</span>
+        <span style="color: #F8F8F2">approval_rate_pct</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">df:</span> <span style="color: #F8F8F2">(</span>
+            <span style="color: #F8F8F2">df[</span><span style="color: #E6DB74">&quot;approved_applications&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">/</span> <span style="color: #F8F8F2">df[</span><span style="color: #E6DB74">&quot;total_applications&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">*</span> <span style="color: #AE81FF">100</span>
+        <span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">round(</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">sort_values(</span><span style="color: #E6DB74">&quot;approval_rate_pct&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">ascending</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">overall_mean</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">area_rates[</span><span style="color: #E6DB74">&quot;approval_rate_pct&quot;</span><span style="color: #F8F8F2">]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mean()</span>
+
+<span style="color: #F8F8F2">display(</span>
+    <span style="color: #F8F8F2">area_rates</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">background_gradient(</span>
+        <span style="color: #F8F8F2">subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;approval_rate_pct&quot;</span><span style="color: #F8F8F2">],</span> <span style="color: #F8F8F2">cmap</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;RdYlGn&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">vmin</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">15</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">vmax</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">55</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">format(</span>
+        <span style="color: #F8F8F2">{</span>
+            <span style="color: #E6DB74">&quot;total_applications&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;{:,}&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;approved_applications&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;{:,}&quot;</span><span style="color: #F8F8F2">,</span>
+            <span style="color: #E6DB74">&quot;approval_rate_pct&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;{:.1f}%&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">}</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_caption(</span>
+        <span style="color: #E6DB74">f&quot;Approval Rate by Education Area (2018-2025)  |  Average: {</span><span style="color: #F8F8F2">overall_mean</span><span style="color: #E6DB74">:.1f}%&quot;</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #FF4689">.</span><span style="color: #F8F8F2">set_table_styles(</span>
+        <span style="color: #F8F8F2">[</span>
+            <span style="color: #F8F8F2">{</span>
+                <span style="color: #E6DB74">&quot;selector&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;caption&quot;</span><span style="color: #F8F8F2">,</span>
+                <span style="color: #E6DB74">&quot;props&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #F8F8F2">[</span>
+                    <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;font-size&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;0.95em&quot;</span><span style="color: #F8F8F2">),</span>
+                    <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;font-weight&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;bold&quot;</span><span style="color: #F8F8F2">),</span>
+                    <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;text-align&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;left&quot;</span><span style="color: #F8F8F2">),</span>
+                    <span style="color: #F8F8F2">(</span><span style="color: #E6DB74">&quot;padding-bottom&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;8px&quot;</span><span style="color: #F8F8F2">),</span>
+                <span style="color: #F8F8F2">],</span>
+            <span style="color: #F8F8F2">}</span>
+        <span style="color: #F8F8F2">]</span>
+    <span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">)</span>
+</pre></div>
+<div class="output"><div class="output-scroll"><style type="text/css">
+#T_0c036 caption {
+  font-size: 0.95em;
+  font-weight: bold;
+  text-align: left;
+  padding-bottom: 8px;
+}
+#T_0c036_row0_col2, #T_0c036_row1_col2, #T_0c036_row2_col2 {
+  background-color: #006837;
+  color: #f1f1f1;
+}
+#T_0c036_row3_col2 {
+  background-color: #199750;
+  color: #f1f1f1;
+}
+#T_0c036_row4_col2 {
+  background-color: #36a657;
+  color: #f1f1f1;
+}
+#T_0c036_row5_col2 {
+  background-color: #8ccd67;
+  color: #000000;
+}
+#T_0c036_row6_col2 {
+  background-color: #c5e67e;
+  color: #000000;
+}
+#T_0c036_row7_col2 {
+  background-color: #c9e881;
+  color: #000000;
+}
+#T_0c036_row8_col2 {
+  background-color: #dcf08f;
+  color: #000000;
+}
+#T_0c036_row9_col2 {
+  background-color: #f7fcb4;
+  color: #000000;
+}
+#T_0c036_row10_col2 {
+  background-color: #fdb567;
+  color: #000000;
+}
+#T_0c036_row11_col2 {
+  background-color: #fca85e;
+  color: #000000;
+}
+#T_0c036_row12_col2 {
+  background-color: #f67c4a;
+  color: #f1f1f1;
+}
+#T_0c036_row13_col2, #T_0c036_row14_col2 {
+  background-color: #f67a49;
+  color: #f1f1f1;
+}
+#T_0c036_row15_col2 {
+  background-color: #db382b;
+  color: #f1f1f1;
+}
+</style>
+<table id="T_0c036">
+  <caption>Approval Rate by Education Area (2018-2025)  |  Average: 42.0%</caption>
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_0c036_level0_col0" class="col_heading level0 col0" >total_applications</th>
+      <th id="T_0c036_level0_col1" class="col_heading level0 col1" >approved_applications</th>
+      <th id="T_0c036_level0_col2" class="col_heading level0 col2" >approval_rate_pct</th>
+    </tr>
+    <tr>
+      <th class="index_name level0" >utbildningsomrade</th>
+      <th class="blank col0" >&nbsp;</th>
+      <th class="blank col1" >&nbsp;</th>
+      <th class="blank col2" >&nbsp;</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_0c036_level0_row0" class="row_heading level0 row0" >Miljövård och miljöskydd</th>
+      <td id="T_0c036_row0_col0" class="data row0 col0" >1</td>
+      <td id="T_0c036_row0_col1" class="data row0 col1" >1</td>
+      <td id="T_0c036_row0_col2" class="data row0 col2" >100.0%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row1" class="row_heading level0 row1" >Övrigt</th>
+      <td id="T_0c036_row1_col0" class="data row1 col0" >10</td>
+      <td id="T_0c036_row1_col1" class="data row1 col1" >7</td>
+      <td id="T_0c036_row1_col2" class="data row1 col2" >70.0%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row2" class="row_heading level0 row2" >Teknik och tillverkning</th>
+      <td id="T_0c036_row2_col0" class="data row2 col0" >1,510</td>
+      <td id="T_0c036_row2_col1" class="data row2 col1" >835</td>
+      <td id="T_0c036_row2_col2" class="data row2 col2" >55.3%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row3" class="row_heading level0 row3" >Lantbruk, djurvård, trädgård, skog och fiske</th>
+      <td id="T_0c036_row3_col0" class="data row3 col0" >255</td>
+      <td id="T_0c036_row3_col1" class="data row3 col1" >130</td>
+      <td id="T_0c036_row3_col2" class="data row3 col2" >51.0%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row4" class="row_heading level0 row4" >Transporttjänster</th>
+      <td id="T_0c036_row4_col0" class="data row4 col0" >216</td>
+      <td id="T_0c036_row4_col1" class="data row4 col1" >107</td>
+      <td id="T_0c036_row4_col2" class="data row4 col2" >49.5%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row5" class="row_heading level0 row5" >Kultur, media och design</th>
+      <td id="T_0c036_row5_col0" class="data row5 col0" >377</td>
+      <td id="T_0c036_row5_col1" class="data row5 col1" >168</td>
+      <td id="T_0c036_row5_col2" class="data row5 col2" >44.6%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row6" class="row_heading level0 row6" >Hälso- och sjukvård samt socialt arbete</th>
+      <td id="T_0c036_row6_col0" class="data row6 col0" >1,172</td>
+      <td id="T_0c036_row6_col1" class="data row6 col1" >475</td>
+      <td id="T_0c036_row6_col2" class="data row6 col2" >40.5%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row7" class="row_heading level0 row7" >Samhällsbyggnad och byggteknik</th>
+      <td id="T_0c036_row7_col0" class="data row7 col0" >1,343</td>
+      <td id="T_0c036_row7_col1" class="data row7 col1" >540</td>
+      <td id="T_0c036_row7_col2" class="data row7 col2" >40.2%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row8" class="row_heading level0 row8" >Hotell, restaurang och turism</th>
+      <td id="T_0c036_row8_col0" class="data row8 col0" >313</td>
+      <td id="T_0c036_row8_col1" class="data row8 col1" >121</td>
+      <td id="T_0c036_row8_col2" class="data row8 col2" >38.7%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row9" class="row_heading level0 row9" >Journalistik och information</th>
+      <td id="T_0c036_row9_col0" class="data row9 col0" >78</td>
+      <td id="T_0c036_row9_col1" class="data row9 col1" >28</td>
+      <td id="T_0c036_row9_col2" class="data row9 col2" >35.9%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row10" class="row_heading level0 row10" >Juridik</th>
+      <td id="T_0c036_row10_col0" class="data row10 col0" >58</td>
+      <td id="T_0c036_row10_col1" class="data row10 col1" >16</td>
+      <td id="T_0c036_row10_col2" class="data row10 col2" >27.6%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row11" class="row_heading level0 row11" >Ekonomi, administration och försäljning</th>
+      <td id="T_0c036_row11_col0" class="data row11 col0" >2,050</td>
+      <td id="T_0c036_row11_col1" class="data row11 col1" >547</td>
+      <td id="T_0c036_row11_col2" class="data row11 col2" >26.7%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row12" class="row_heading level0 row12" >Data/IT</th>
+      <td id="T_0c036_row12_col0" class="data row12 col0" >2,088</td>
+      <td id="T_0c036_row12_col1" class="data row12 col1" >501</td>
+      <td id="T_0c036_row12_col2" class="data row12 col2" >24.0%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row13" class="row_heading level0 row13" >Pedagogik och undervisning</th>
+      <td id="T_0c036_row13_col0" class="data row13 col0" >259</td>
+      <td id="T_0c036_row13_col1" class="data row13 col1" >62</td>
+      <td id="T_0c036_row13_col2" class="data row13 col2" >23.9%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row14" class="row_heading level0 row14" >Friskvård och kroppsvård</th>
+      <td id="T_0c036_row14_col0" class="data row14 col0" >84</td>
+      <td id="T_0c036_row14_col1" class="data row14 col1" >20</td>
+      <td id="T_0c036_row14_col2" class="data row14 col2" >23.8%</td>
+    </tr>
+    <tr>
+      <th id="T_0c036_level0_row15" class="row_heading level0 row15" >Säkerhetstjänster</th>
+      <td id="T_0c036_row15_col0" class="data row15 col0" >168</td>
+      <td id="T_0c036_row15_col1" class="data row15 col1" >33</td>
+      <td id="T_0c036_row15_col2" class="data row15 col2" >19.6%</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section><section class="cell markdown-cell"><h2>7. Save Best Model</h2>
+<p>The model with the highest F1 on the approved class is saved to <code>api/model.joblib</code>.</p>
+<p>The exact column list is saved to <code>api/model_columns.json</code> so a future API endpoint</p>
+<p>can reconstruct the same feature matrix from new user inputs.</p></section><section class="cell"><div class="code-header"><span>Code cell 16</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">best_model_name</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">max(</span>
+    <span style="color: #F8F8F2">models,</span>
+    <span style="color: #F8F8F2">key</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">lambda</span> <span style="color: #F8F8F2">name:</span> <span style="color: #F8F8F2">classification_report(</span>
+        <span style="color: #F8F8F2">y_test,</span> <span style="color: #F8F8F2">models[name]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">predict(X_test),</span> <span style="color: #F8F8F2">output_dict</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span>
+    <span style="color: #F8F8F2">)[</span><span style="color: #E6DB74">&quot;1&quot;</span><span style="color: #F8F8F2">][</span><span style="color: #E6DB74">&quot;f1-score&quot;</span><span style="color: #F8F8F2">],</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">best_model</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">models[best_model_name]</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Best model by F1 (approved): {</span><span style="color: #F8F8F2">best_model_name</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">MODEL_OUTPUT_PATH</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">parent</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">mkdir(parents</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">exist_ok</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">True</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">joblib</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dump(best_model,</span> <span style="color: #F8F8F2">MODEL_OUTPUT_PATH)</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;save&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">f&quot;Model saved: {</span><span style="color: #F8F8F2">best_model_name</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(MODEL_OUTPUT_PATH))</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Model saved   -&gt; {</span><span style="color: #F8F8F2">MODEL_OUTPUT_PATH</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">exc:</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;save&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Failed to save model&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(exc))</span>
+    <span style="color: #66D9EF">raise</span>
+
+<span style="color: #66D9EF">try</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #959077"># Explicit UTF-8 encoding avoids cp1252 issues on Windows (Swedish chars in column names).</span>
+    <span style="color: #F8F8F2">MODEL_COLUMNS_OUTPUT_PATH</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">write_text(</span>
+        <span style="color: #F8F8F2">json</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dumps(training_columns,</span> <span style="color: #F8F8F2">ensure_ascii</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">indent</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">2</span><span style="color: #F8F8F2">),</span>
+        <span style="color: #F8F8F2">encoding</span><span style="color: #FF4689">=</span><span style="color: #E6DB74">&quot;utf-8&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">log_event(</span>
+        <span style="color: #E6DB74">&quot;save&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #E6DB74">f&quot;Column list saved: {</span><span style="color: #F8F8F2">len(training_columns)</span><span style="color: #E6DB74">} features&quot;</span><span style="color: #F8F8F2">,</span>
+        <span style="color: #F8F8F2">str(MODEL_COLUMNS_OUTPUT_PATH),</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Columns saved -&gt; {</span><span style="color: #F8F8F2">MODEL_COLUMNS_OUTPUT_PATH</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">except</span> <span style="color: #A6E22E">Exception</span> <span style="color: #66D9EF">as</span> <span style="color: #F8F8F2">exc:</span>
+    <span style="color: #F8F8F2">log_event(</span><span style="color: #E6DB74">&quot;save&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #E6DB74">&quot;Failed to save column list&quot;</span><span style="color: #F8F8F2">,</span> <span style="color: #F8F8F2">str(exc))</span>
+    <span style="color: #66D9EF">raise</span>
+</pre></div>
+<div class="output"><pre>Best model by F1 (approved): Random Forest
+Model saved   -&gt; api\model.joblib
+Columns saved -&gt; api\model_columns.json
+</pre></div></section><section class="cell markdown-cell"><h2>8. Interactive Predictor</h2>
+<p>Run the <strong>valid values</strong> cell first to see all accepted inputs, then edit</p>
+<p><code>my_application</code> and run the predictor cell.</p>
+<p>&gt; Values must match <strong>exactly</strong> (case-sensitive) the strings printed below.</p>
+<p>&gt; An unknown value gets a zero in its dummy column , the model falls back to</p>
+<p>&gt; other features, which reduces confidence.</p></section><section class="cell"><div class="code-header"><span>Code cell 17</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;Valid values for each categorical field:</span><span style="color: #AE81FF">\n</span><span style="color: #E6DB74">&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">column</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">CATEGORICAL_FEATURES:</span>
+    <span style="color: #F8F8F2">unique_values</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">sorted(binary_applications[column]</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">dropna()</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">unique())</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;{</span><span style="color: #F8F8F2">column</span><span style="color: #E6DB74">}:&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">for</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">in</span> <span style="color: #F8F8F2">unique_values:</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  &#39;{</span><span style="color: #F8F8F2">value</span><span style="color: #E6DB74">}&#39;&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print()</span>
+</pre></div>
+<div class="output"><pre>Valid values for each categorical field:
+
+lan:
+  &#x27;Blekinge&#x27;
+  &#x27;Dalarna&#x27;
+  &#x27;Flera kommuner&#x27;
+  &#x27;Gotland&#x27;
+  &#x27;Gävleborg&#x27;
+  &#x27;Halland&#x27;
+  &#x27;Jämtland&#x27;
+  &#x27;Jönköping&#x27;
+  &#x27;Kalmar&#x27;
+  &#x27;Kronoberg&#x27;
+  &#x27;Norrbotten&#x27;
+  &#x27;Skåne&#x27;
+  &#x27;Stockholm&#x27;
+  &#x27;Södermanland&#x27;
+  &#x27;Uppsala&#x27;
+  &#x27;Värmland&#x27;
+  &#x27;Västerbotten&#x27;
+  &#x27;Västernorrland&#x27;
+  &#x27;Västmanland&#x27;
+  &#x27;Västra Götaland&#x27;
+  &#x27;Örebro&#x27;
+  &#x27;Östergötland&#x27;
+
+utbildningsomrade:
+  &#x27;Data/IT&#x27;
+  &#x27;Ekonomi, administration och försäljning&#x27;
+  &#x27;Friskvård och kroppsvård&#x27;
+  &#x27;Hotell, restaurang och turism&#x27;
+  &#x27;Hälso- och sjukvård samt socialt arbete&#x27;
+  &#x27;Journalistik och information&#x27;
+  &#x27;Juridik&#x27;
+  &#x27;Kultur, media och design&#x27;
+  &#x27;Lantbruk, djurvård, trädgård, skog och fiske&#x27;
+  &#x27;Miljövård och miljöskydd&#x27;
+  &#x27;Pedagogik och undervisning&#x27;
+  &#x27;Samhällsbyggnad och byggteknik&#x27;
+  &#x27;Säkerhetstjänster&#x27;
+  &#x27;Teknik och tillverkning&#x27;
+  &#x27;Transporttjänster&#x27;
+  &#x27;Övrigt&#x27;
+
+studieform:
+  &#x27;Bunden&#x27;
+  &#x27;Distans&#x27;
+
+huvudmannatyp:
+  &#x27;Kommun&#x27;
+  &#x27;Privat&#x27;
+  &#x27;Region&#x27;
+  &#x27;Statlig&#x27;
+
+</pre></div></section><section class="cell"><div class="code-header"><span>Code cell 18</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #F8F8F2">my_application</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">{</span>
+    <span style="color: #E6DB74">&quot;lan&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Stockholm&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;utbildningsomrade&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Teknik och tillverkning&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;studieform&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Distans&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;huvudmannatyp&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #E6DB74">&quot;Privat&quot;</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;source_year&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">2025</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;yh_poang&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">300</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;studietakt_procent&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">100</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;is_distance&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">1</span><span style="color: #F8F8F2">,</span>
+    <span style="color: #E6DB74">&quot;has_multiple_municipalities&quot;</span><span style="color: #F8F8F2">:</span> <span style="color: #AE81FF">0</span><span style="color: #F8F8F2">,</span>
+<span style="color: #F8F8F2">}</span>
+
+<span style="color: #F8F8F2">input_row</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame([my_application])</span>
+<span style="color: #F8F8F2">input_encoded</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">get_dummies(</span>
+    <span style="color: #F8F8F2">input_row,</span> <span style="color: #F8F8F2">columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">CATEGORICAL_FEATURES,</span> <span style="color: #F8F8F2">drop_first</span><span style="color: #FF4689">=</span><span style="color: #66D9EF">False</span>
+<span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">input_aligned</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">input_encoded</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">reindex(columns</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">training_columns,</span> <span style="color: #F8F8F2">fill_value</span><span style="color: #FF4689">=</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">)</span>
+
+<span style="color: #F8F8F2">approval_probability</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">best_model</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">predict_proba(input_aligned)[</span><span style="color: #AE81FF">0</span><span style="color: #F8F8F2">][</span><span style="color: #AE81FF">1</span><span style="color: #F8F8F2">]</span>
+<span style="color: #F8F8F2">rejection_probability</span> <span style="color: #FF4689">=</span> <span style="color: #AE81FF">1</span> <span style="color: #FF4689">-</span> <span style="color: #F8F8F2">approval_probability</span>
+
+<span style="color: #959077"># Pre-build the progress bar outside the f-string so the literal block</span>
+<span style="color: #959077"># characters (U+2588 full, U+2591 light) do not need to be expressed as</span>
+<span style="color: #959077"># backslash escapes inside an f-string expression (which is a 3.12+ feature).</span>
+<span style="color: #F8F8F2">bar_total</span> <span style="color: #FF4689">=</span> <span style="color: #AE81FF">40</span>
+<span style="color: #F8F8F2">bar_filled</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int(approval_probability</span> <span style="color: #FF4689">*</span> <span style="color: #F8F8F2">bar_total)</span>
+<span style="color: #F8F8F2">bar</span> <span style="color: #FF4689">=</span> <span style="color: #E6DB74">&quot;█&quot;</span> <span style="color: #FF4689">*</span> <span style="color: #F8F8F2">bar_filled</span> <span style="color: #FF4689">+</span> <span style="color: #E6DB74">&quot;░&quot;</span> <span style="color: #FF4689">*</span> <span style="color: #F8F8F2">(bar_total</span> <span style="color: #FF4689">-</span> <span style="color: #F8F8F2">bar_filled)</span>
+
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;Model: {</span><span style="color: #F8F8F2">best_model_name</span><span style="color: #E6DB74">}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print()</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  Approval probability : {</span><span style="color: #F8F8F2">approval_probability</span><span style="color: #E6DB74">:.1%}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  Rejection probability: {</span><span style="color: #F8F8F2">rejection_probability</span><span style="color: #E6DB74">:.1%}&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #F8F8F2">print()</span>
+<span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">f&quot;  [{</span><span style="color: #F8F8F2">bar</span><span style="color: #E6DB74">}] {</span><span style="color: #F8F8F2">approval_probability</span><span style="color: #E6DB74">:.1%}&quot;</span><span style="color: #F8F8F2">)</span>
+</pre></div>
+</section><section class="cell markdown-cell"><h2>Limitations</h2>
+<p>1. <strong>Not MYH&#x27;s actual process.</strong> MYH evaluates program quality, regional need, and employer</p>
+<p>demand , none of which are in this dataset. The model approximates statistical patterns,</p>
+<p>not the real decision criteria.</p>
+<p>2. <strong>Policy changes break predictions.</strong> If MYH shifts priorities (e.g. a push toward</p>
+<p>green tech), the model will not know until it is retrained. <code>source_year</code> captures</p>
+<p>gradual drift but not sudden policy turns.</p>
+<p>3. <strong>Sparse categories have low confidence.</strong> Areas or counties with few historical</p>
+<p>applications produce wide uncertainty in the probability estimate.</p>
+<p>4. <strong>Provider quality is invisible.</strong> A school with a strong track record may genuinely</p>
+<p>have better odds , the model cannot see this because provider name was excluded.</p>
+<p>5. <strong>Probabilities are estimates, not guarantees.</strong> A 60 % approval score means similar</p>
+<p>past applications were often approved , not that this specific one will be.</p></section><section class="cell markdown-cell"><hr>
+<h2>9. Pipeline Report</h2>
+<p>A full record of every event logged during this run - setup, data load, feature engineering, model training, evaluation, and save.</p>
+<p>Green = ok, amber = warning, red = error.</p>
+<p>This is the single place to look when something goes wrong. A warning here is informative; an error here means the saved model or output should not be trusted.</p></section><section class="cell"><div class="code-header"><span>Code cell 19</span><span>prediction_model</span></div><div class="highlight" style="background: #272822"><pre style="line-height: 125%;"><span></span><span style="color: #66D9EF">if</span> <span style="color: #FF4689">not</span> <span style="color: #F8F8F2">PIPELINE_LOG:</span>
+    <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;No events logged.&quot;</span><span style="color: #F8F8F2">)</span>
+<span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+    <span style="color: #F8F8F2">log_df</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">pd</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">DataFrame(PIPELINE_LOG)</span>
+
+    <span style="color: #F8F8F2">ok_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((log_df[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+    <span style="color: #F8F8F2">warn_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((log_df[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+    <span style="color: #F8F8F2">err_count</span> <span style="color: #FF4689">=</span> <span style="color: #F8F8F2">int((log_df[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">)</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">sum())</span>
+
+    <span style="color: #F8F8F2">print(</span>
+        <span style="color: #E6DB74">f&quot;Pipeline complete  |  {</span><span style="color: #F8F8F2">ok_count</span><span style="color: #E6DB74">} ok  |  {</span><span style="color: #F8F8F2">warn_count</span><span style="color: #E6DB74">} warning(s)  |  {</span><span style="color: #F8F8F2">err_count</span><span style="color: #E6DB74">} error(s)&quot;</span>
+    <span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">err_count:</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;  -&gt; Action required: review the errors before using the saved model.&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">elif</span> <span style="color: #F8F8F2">warn_count:</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;  -&gt; Warnings present: model may be usable but check the details.&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #66D9EF">else</span><span style="color: #F8F8F2">:</span>
+        <span style="color: #F8F8F2">print(</span><span style="color: #E6DB74">&quot;  -&gt; All events clean - model is ready for use.&quot;</span><span style="color: #F8F8F2">)</span>
+    <span style="color: #F8F8F2">print()</span>
+
+    <span style="color: #66D9EF">def</span><span style="color: #F8F8F2"> </span><span style="color: #A6E22E">_style_level</span><span style="color: #F8F8F2">(value:</span> <span style="color: #F8F8F2">str)</span> <span style="color: #FF4689">-&gt;</span> <span style="color: #F8F8F2">str:</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;ok&quot;</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(46, 204, 113, 0.18)&quot;</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;warning&quot;</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(230, 126, 34, 0.28); font-weight: 600&quot;</span>
+        <span style="color: #66D9EF">if</span> <span style="color: #F8F8F2">value</span> <span style="color: #FF4689">==</span> <span style="color: #E6DB74">&quot;error&quot;</span><span style="color: #F8F8F2">:</span>
+            <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;background-color: rgba(231, 76, 60, 0.28); font-weight: 600&quot;</span>
+        <span style="color: #66D9EF">return</span> <span style="color: #E6DB74">&quot;&quot;</span>
+
+    <span style="color: #F8F8F2">display(log_df</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">style</span><span style="color: #FF4689">.</span><span style="color: #F8F8F2">map(_style_level,</span> <span style="color: #F8F8F2">subset</span><span style="color: #FF4689">=</span><span style="color: #F8F8F2">[</span><span style="color: #E6DB74">&quot;Level&quot;</span><span style="color: #F8F8F2">]))</span>
+</pre></div>
+<div class="output"><pre>Pipeline complete  |  13 ok  |  1 warning(s)  |  0 error(s)
+  -&gt; Warnings present: model may be usable but check the details.
+
+</pre><div class="output-scroll"><style type="text/css">
+#T_8cd8b_row0_col1, #T_8cd8b_row1_col1, #T_8cd8b_row3_col1, #T_8cd8b_row4_col1, #T_8cd8b_row5_col1, #T_8cd8b_row6_col1, #T_8cd8b_row7_col1, #T_8cd8b_row8_col1, #T_8cd8b_row9_col1, #T_8cd8b_row10_col1, #T_8cd8b_row11_col1, #T_8cd8b_row12_col1, #T_8cd8b_row13_col1 {
+  background-color: rgba(46, 204, 113, 0.18);
+}
+#T_8cd8b_row2_col1 {
+  background-color: rgba(230, 126, 34, 0.28);
+  font-weight: 600;
+}
+</style>
+<table id="T_8cd8b">
+  <thead>
+    <tr>
+      <th class="blank level0" >&nbsp;</th>
+      <th id="T_8cd8b_level0_col0" class="col_heading level0 col0" >Step</th>
+      <th id="T_8cd8b_level0_col1" class="col_heading level0 col1" >Level</th>
+      <th id="T_8cd8b_level0_col2" class="col_heading level0 col2" >Message</th>
+      <th id="T_8cd8b_level0_col3" class="col_heading level0 col3" >Detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th id="T_8cd8b_level0_row0" class="row_heading level0 row0" >0</th>
+      <td id="T_8cd8b_row0_col0" class="data row0 col0" >setup</td>
+      <td id="T_8cd8b_row0_col1" class="data row0 col1" >ok</td>
+      <td id="T_8cd8b_row0_col2" class="data row0 col2" >Data file found</td>
+      <td id="T_8cd8b_row0_col3" class="data row0 col3" >data\curated_applications.csv</td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row1" class="row_heading level0 row1" >1</th>
+      <td id="T_8cd8b_row1_col0" class="data row1 col0" >load</td>
+      <td id="T_8cd8b_row1_col1" class="data row1 col1" >ok</td>
+      <td id="T_8cd8b_row1_col2" class="data row1 col2" >CSV read: 9,983 rows</td>
+      <td id="T_8cd8b_row1_col3" class="data row1 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row2" class="row_heading level0 row2" >2</th>
+      <td id="T_8cd8b_row2_col0" class="data row2 col0" >load</td>
+      <td id="T_8cd8b_row2_col1" class="data row2 col1" >warning</td>
+      <td id="T_8cd8b_row2_col2" class="data row2 col2" >Dropped 1 'withdrawn' row(s) - too few to train on</td>
+      <td id="T_8cd8b_row2_col3" class="data row2 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row3" class="row_heading level0 row3" >3</th>
+      <td id="T_8cd8b_row3_col0" class="data row3 col0" >load</td>
+      <td id="T_8cd8b_row3_col1" class="data row3 col1" >ok</td>
+      <td id="T_8cd8b_row3_col2" class="data row3 col2" >Working dataset: 9,982 rows</td>
+      <td id="T_8cd8b_row3_col3" class="data row3 col3" >approved=3,591 (36.0%), rejected=6,391 (64.0%)</td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row4" class="row_heading level0 row4" >4</th>
+      <td id="T_8cd8b_row4_col0" class="data row4 col0" >features</td>
+      <td id="T_8cd8b_row4_col1" class="data row4 col1" >ok</td>
+      <td id="T_8cd8b_row4_col2" class="data row4 col2" >Feature matrix: 9,982 rows x 49 columns</td>
+      <td id="T_8cd8b_row4_col3" class="data row4 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row5" class="row_heading level0 row5" >5</th>
+      <td id="T_8cd8b_row5_col0" class="data row5 col0" >split</td>
+      <td id="T_8cd8b_row5_col1" class="data row5 col1" >ok</td>
+      <td id="T_8cd8b_row5_col2" class="data row5 col2" >Train/test split: 7,985 train, 1,997 test</td>
+      <td id="T_8cd8b_row5_col3" class="data row5 col3" >Approval rate - train: 36.0%, test: 36.0%</td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row6" class="row_heading level0 row6" >6</th>
+      <td id="T_8cd8b_row6_col0" class="data row6 col0" >tuning</td>
+      <td id="T_8cd8b_row6_col1" class="data row6 col1" >ok</td>
+      <td id="T_8cd8b_row6_col2" class="data row6 col2" >Decision Tree - best CV F1: 0.537</td>
+      <td id="T_8cd8b_row6_col3" class="data row6 col3" >{'max_depth': 12, 'min_samples_leaf': 20}</td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row7" class="row_heading level0 row7" >7</th>
+      <td id="T_8cd8b_row7_col0" class="data row7 col0" >tuning</td>
+      <td id="T_8cd8b_row7_col1" class="data row7 col1" >ok</td>
+      <td id="T_8cd8b_row7_col2" class="data row7 col2" >Random Forest - best CV F1: 0.559</td>
+      <td id="T_8cd8b_row7_col3" class="data row7 col3" >{'max_depth': 12, 'max_features': 'sqrt', 'n_estimators': 300}</td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row8" class="row_heading level0 row8" >8</th>
+      <td id="T_8cd8b_row8_col0" class="data row8 col0" >tuning</td>
+      <td id="T_8cd8b_row8_col1" class="data row8 col1" >ok</td>
+      <td id="T_8cd8b_row8_col2" class="data row8 col2" >XGBoost - best CV F1: 0.572</td>
+      <td id="T_8cd8b_row8_col3" class="data row8 col3" >{'learning_rate': 0.1, 'max_depth': 4, 'n_estimators': 300}</td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row9" class="row_heading level0 row9" >9</th>
+      <td id="T_8cd8b_row9_col0" class="data row9 col0" >evaluate</td>
+      <td id="T_8cd8b_row9_col1" class="data row9 col1" >ok</td>
+      <td id="T_8cd8b_row9_col2" class="data row9 col2" >Decision Tree: accuracy=0.623, F1(approved)=0.540</td>
+      <td id="T_8cd8b_row9_col3" class="data row9 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row10" class="row_heading level0 row10" >10</th>
+      <td id="T_8cd8b_row10_col0" class="data row10 col0" >evaluate</td>
+      <td id="T_8cd8b_row10_col1" class="data row10 col1" >ok</td>
+      <td id="T_8cd8b_row10_col2" class="data row10 col2" >Random Forest: accuracy=0.659, F1(approved)=0.548</td>
+      <td id="T_8cd8b_row10_col3" class="data row10 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row11" class="row_heading level0 row11" >11</th>
+      <td id="T_8cd8b_row11_col0" class="data row11 col0" >evaluate</td>
+      <td id="T_8cd8b_row11_col1" class="data row11 col1" >ok</td>
+      <td id="T_8cd8b_row11_col2" class="data row11 col2" >XGBoost: accuracy=0.634, F1(approved)=0.546</td>
+      <td id="T_8cd8b_row11_col3" class="data row11 col3" ></td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row12" class="row_heading level0 row12" >12</th>
+      <td id="T_8cd8b_row12_col0" class="data row12 col0" >save</td>
+      <td id="T_8cd8b_row12_col1" class="data row12 col1" >ok</td>
+      <td id="T_8cd8b_row12_col2" class="data row12 col2" >Model saved: Random Forest</td>
+      <td id="T_8cd8b_row12_col3" class="data row12 col3" >api\model.joblib</td>
+    </tr>
+    <tr>
+      <th id="T_8cd8b_level0_row13" class="row_heading level0 row13" >13</th>
+      <td id="T_8cd8b_row13_col0" class="data row13 col0" >save</td>
+      <td id="T_8cd8b_row13_col1" class="data row13 col1" >ok</td>
+      <td id="T_8cd8b_row13_col2" class="data row13 col2" >Column list saved: 49 features</td>
+      <td id="T_8cd8b_row13_col3" class="data row13 col3" >api\model_columns.json</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></section></main></body></html>

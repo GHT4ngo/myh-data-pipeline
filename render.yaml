@@ -1,0 +1,33 @@
+# Render.com deployment blueprint
+# Connect this repo in Render and it will auto-deploy the API as a free web service.
+# Set the four PG_* environment variables in the Render dashboard to point at your
+# Neon.tech (or other) PostgreSQL instance.
+
+services:
+  - type: web
+    name: myh-pipeline-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PG_HOST
+        sync: false
+      - key: PG_PORT
+        value: "5432"
+      - key: PG_DATABASE
+        sync: false
+      - key: PG_USER
+        sync: false
+      - key: PG_PASSWORD
+        sync: false
+      - key: PG_SSLMODE
+        value: "require"
+      # Comma-separated allow-list for CORS. Leave unset to allow all origins
+      # (handy for local development but not recommended in production).
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Shared secret required in the X-Refresh-Token header for POST /refresh.
+      # Leave unset to disable the operational endpoint guard.
+      - key: REFRESH_SECRET
+        sync: false
